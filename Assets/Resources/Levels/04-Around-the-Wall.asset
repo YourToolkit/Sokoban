@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a39f52ceeb9916741ba39b2ee3306fe8, type: 3}
+  m_Name: 04-Around-the-Wall
+  m_EditorClassIdentifier: 
+  Data:
+    Id: level-04
+    Name: "绕墙而行"
+    Description: "绕过墙壁安排路线。推动前，确认自己还能到达箱子的另一侧。"
+    Width: 8
+    Height: 7
+    Cells: 0100000001000000010000000100000001000000010000000100000001000000010000000000000000000000000000000000000000000000000000000100000001000000000000000000000000000000000000000000000000000000010000000100000000000000000000000000000000000000000000000000000001000000010000000000000000000000000000000100000000000000000000000100000001000000000000000000000000000000010000000000000000000000010000000100000001000000010000000100000001000000010000000100000001000000
+    Goals:
+    - X: 2
+      Y: 5
+    - X: 5
+      Y: 4
+    HasPlayer: 1
+    PlayerStart:
+      X: 3
+      Y: 1
+    Boxes:
+    - X: 2
+      Y: 2
+    - X: 4
+      Y: 2
+  VerifiedSolution: LUUURDDRDRUU

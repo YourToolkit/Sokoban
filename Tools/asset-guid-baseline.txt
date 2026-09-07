@@ -1,0 +1,108 @@
+Assets\Resources.meta guid: ca5977ea65dc3944c806f908291d601f
+Assets\Scenes.meta guid: c856a893540440c4e866fdd172d5abc1
+Assets\Sokoban.meta guid: 761276f2e01a20546bd1dbd65fe415c0
+Assets\TextMesh Pro.meta guid: f54d1bd14bd3ca042bd867b519fee8cc
+Assets\Resources\Sokoban.meta guid: 96a55523a8c6aba489e8bf5fb9eaae20
+Assets\Resources\Sokoban\GameResources.asset.meta guid: e5e6b9ead99d3a74883aa4f7426e2f88
+Assets\Scenes\Game.unity.meta guid: 1e72e0c1c28f1794abb8052b0b2630c0
+Assets\Scenes\SampleScene.unity.meta guid: 2cda990e2423bbf4892e6590ba056729
+Assets\Sokoban\Content.meta guid: 12a5b31ef441ee14597ee73c45720406
+Assets\Sokoban\Core.meta guid: f2bd9f48590f1194580e902db2ce3950
+Assets\Sokoban\Editor.meta guid: 33445721768f3b345859f6721b420acc
+Assets\Sokoban\Runtime.meta guid: 64dee6d37fc67be4fa0c2768135d0bf1
+Assets\Sokoban\Tests.meta guid: 5be98918a67ac5b4e9c4260cf47b9682
+Assets\Sokoban\Content\Art.meta guid: 3e88882b2e8e6fc4293aeacde487b6ef
+Assets\Sokoban\Content\Audio.meta guid: 386748bdfb8b53a4f8d27e9c143634f8
+Assets\Sokoban\Content\GameConfig.asset.meta guid: 7670bc6adb8a6f64b9f19a5074322388
+Assets\Sokoban\Content\LevelCatalog.asset.meta guid: 2678396264dd8a6478a1206a552b00aa
+Assets\Sokoban\Content\Levels.meta guid: 74631f21e1b16204597513165222cf22
+Assets\Sokoban\Content\VisualConfig.asset.meta guid: 9aceb44707af3b14a80f9bb9f9272225
+Assets\Sokoban\Content\Art\Crate.png.meta guid: ea1729a5bab52a947bcaaa4ff8e7ff22
+Assets\Sokoban\Content\Art\CrateDocked.png.meta guid: 9392ec778b9dcd14ca182cdf2a309941
+Assets\Sokoban\Content\Art\Floor.png.meta guid: 1f87f27674b6b7640b742c126ee128ce
+Assets\Sokoban\Content\Art\Goal.png.meta guid: a1ade9a9882c4024a881dab6fcb7d8a9
+Assets\Sokoban\Content\Art\Player.png.meta guid: 137a4cd200946ff48bfb828117232966
+Assets\Sokoban\Content\Art\Wall.png.meta guid: bd271b75fd462ad49972aa72a132286e
+Assets\Sokoban\Content\Audio\Blocked.wav.meta guid: e49a53755d0ef5b49be6cef1fa7fd2d7
+Assets\Sokoban\Content\Audio\Clear.wav.meta guid: 063bf737bb55a324eba919289d5d9f3e
+Assets\Sokoban\Content\Audio\Move.wav.meta guid: 4edb3642a74f9b2419b0dceacc080ded
+Assets\Sokoban\Content\Audio\Push.wav.meta guid: 5556303f4e4b47c4eb0c1e95a98e50af
+Assets\Sokoban\Content\Levels\01-First-Push.asset.meta guid: 6cd4cdd1e2ac4704cbc85cf921937cbc
+Assets\Sokoban\Content\Levels\02-Change-Sides.asset.meta guid: 09bd2031b5c7fda4bbd726e537bda78f
+Assets\Sokoban\Content\Levels\03-Two-Routes.asset.meta guid: e29d1b5bf6421b247bd480d173bf6946
+Assets\Sokoban\Content\Levels\04-Around-the-Wall.asset.meta guid: 50bac831c722d5647ae320e49dd4d053
+Assets\Sokoban\Content\Levels\05-Make-Room.asset.meta guid: c106d99fb3783cb47aaa6af4412ac9aa
+Assets\Sokoban\Content\Levels\06-Crossroads.asset.meta guid: f059d35b8d1abeb439329f218d5a9006
+Assets\Sokoban\Core\GameSession.cs.meta guid: 3bb39ae8db30c4b4a8f84609edaaf2c0
+Assets\Sokoban\Core\LevelDefinition.cs.meta guid: 78a78daab823422408930366bdd6a798
+Assets\Sokoban\Core\Sokoban.Core.asmdef.meta guid: 37a4aca91c230af489f6549af523822d
+Assets\Sokoban\Editor\BuiltInLevels.cs.meta guid: aca1659e5d36e57448002d863a644543
+Assets\Sokoban\Editor\EditorBridgeSmoke.cs.meta guid: 6c3c5399d8214a1b94093f2e25a1f6df
+Assets\Sokoban\Editor\EditorPlaytestBridge.cs.meta guid: bcdf547d97f14606925465ef82e0804c
+Assets\Sokoban\Editor\LevelAssetInspector.cs.meta guid: b19895211b1848229253b237e811908f
+Assets\Sokoban\Editor\LevelEditorDraft.cs.meta guid: 7e3e58449b8f4e41849d74a011d990a4
+Assets\Sokoban\Editor\LevelEditorWindow.cs.meta guid: 54d015e5cd814f569e1fae8c90908149
+Assets\Sokoban\Editor\LocalValidationBridge.cs.meta guid: 09d6972d11f9468a880022fba5088697
+Assets\Sokoban\Editor\ProjectSetup.cs.meta guid: cde4785e741b4e2da2e0d4f71ec36857
+Assets\Sokoban\Editor\Sokoban.Editor.asmdef.meta guid: c84f9f834b5e8744fa2f15e738d2d705
+Assets\Sokoban\Runtime\BoardView.cs.meta guid: 9d0b476d671a57843b0984423b1abda1
+Assets\Sokoban\Runtime\Content.meta guid: 2d44021640d9a34449f9515421ea01e6
+Assets\Sokoban\Runtime\DevelopmentCapture.cs.meta guid: 20121faa19234e8c87ca5942bf13381c
+Assets\Sokoban\Runtime\GameApp.cs.meta guid: f48474d2c2bf43518f1718c0b4d58d7b
+Assets\Sokoban\Runtime\PlaytestRequest.cs.meta guid: f8eee8ac0dab94b4391389dd07603280
+Assets\Sokoban\Runtime\ProgressStore.cs.meta guid: 65f8646737a9d6d47a2f138674e4c708
+Assets\Sokoban\Runtime\Sokoban.Runtime.asmdef.meta guid: 069f292901e94394f855b196edd5ecda
+Assets\Sokoban\Runtime\UiFactory.cs.meta guid: a555036e48697e64ebe010d0d1f26e7c
+Assets\Sokoban\Runtime\Content\GameConfig.cs.meta guid: ae5bcb3b3959b0a4b809002b942899aa
+Assets\Sokoban\Runtime\Content\GameResources.cs.meta guid: 8a705e362d8614a4a8057e4b6074d37a
+Assets\Sokoban\Runtime\Content\LevelAsset.cs.meta guid: a39f52ceeb9916741ba39b2ee3306fe8
+Assets\Sokoban\Runtime\Content\LevelCatalog.cs.meta guid: 8d7efcdc801a9f64ca10a2fdd191b2e0
+Assets\Sokoban\Runtime\Content\VisualConfig.cs.meta guid: 0f5ff8d1030cc15459c50ac3bcba97d7
+Assets\Sokoban\Tests\EditMode.meta guid: 5ca8b8c57a645dd48af8b6d03fd60d1f
+Assets\Sokoban\Tests\PlayMode.meta guid: ec00e20aefa64ba69b8b8f98b9e77213
+Assets\Sokoban\Tests\EditMode\ContentTests.cs.meta guid: 87ec85199211457c858e4f0e7424bf64
+Assets\Sokoban\Tests\EditMode\CoreTests.cs.meta guid: ee932c536e2b4d73ab4cc3edce048a59
+Assets\Sokoban\Tests\EditMode\EditorWorkflowTests.cs.meta guid: 9b0e6b3642b444fe92c04843badbeedd
+Assets\Sokoban\Tests\EditMode\Sokoban.Tests.asmdef.meta guid: 67563f281bc3e4943b56d43f80659638
+Assets\Sokoban\Tests\PlayMode\RuntimeFlowTests.cs.meta guid: 5727754c34eb4462970dd5b115db1480
+Assets\Sokoban\Tests\PlayMode\Sokoban.PlayModeTests.asmdef.meta guid: 706cbdd7c5c947748e60b71059b2853c
+Assets\TextMesh Pro\Documentation.meta guid: 8e7e8f5a82a3a134e91c54efd2274ea9
+Assets\TextMesh Pro\Fonts.meta guid: 6ab70aee4d56447429c680537fbf93ed
+Assets\TextMesh Pro\Resources.meta guid: 243e06394e614e5d99fab26083b707fa
+Assets\TextMesh Pro\Shaders.meta guid: e9f693669af91aa45ad615fc681ed29f
+Assets\TextMesh Pro\Sprites.meta guid: d0603b6d5186471b96c778c3949c7ce2
+Assets\TextMesh Pro\Documentation\TextMesh Pro User Guide 2016.pdf.meta guid: 1b8d251f9af63b746bf2f7ffe00ebb9b
+Assets\TextMesh Pro\Fonts\LiberationSans - OFL.txt.meta guid: 6e59c59b81ab47f9b6ec5781fa725d2c
+Assets\TextMesh Pro\Fonts\LiberationSans.ttf.meta guid: e3265ab4bf004d28a9537516768c1c75
+Assets\TextMesh Pro\Resources\Fonts & Materials.meta guid: 731f1baa9d144a9897cb1d341c2092b8
+Assets\TextMesh Pro\Resources\LineBreaking Following Characters.txt.meta guid: fade42e8bc714b018fac513c043d323b
+Assets\TextMesh Pro\Resources\LineBreaking Leading Characters.txt.meta guid: d82c1b31c7e74239bff1220585707d2b
+Assets\TextMesh Pro\Resources\Sprite Assets.meta guid: 512a49d95c0c4332bdd98131869c23c9
+Assets\TextMesh Pro\Resources\Style Sheets.meta guid: 4aecb92fff08436c8303b10eab8da368
+Assets\TextMesh Pro\Resources\TMP Settings.asset.meta guid: 3f5b5dff67a942289a9defa416b206f3
+Assets\TextMesh Pro\Resources\Fonts & Materials\LiberationSans SDF - Drop Shadow.mat.meta guid: e73a58f6e2794ae7b1b7e50b7fb811b0
+Assets\TextMesh Pro\Resources\Fonts & Materials\LiberationSans SDF - Fallback.asset.meta guid: 2e498d1c8094910479dc3e1b768306a4
+Assets\TextMesh Pro\Resources\Fonts & Materials\LiberationSans SDF - Outline.mat.meta guid: 79459efec17a4d00a321bdcc27bbc385
+Assets\TextMesh Pro\Resources\Fonts & Materials\LiberationSans SDF.asset.meta guid: 8f586378b4e144a9851e7b34d9b748ee
+Assets\TextMesh Pro\Resources\Sprite Assets\EmojiOne.asset.meta guid: c41005c129ba4d66911b75229fd70b45
+Assets\TextMesh Pro\Resources\Style Sheets\Default Style Sheet.asset.meta guid: f952c082cb03451daed3ee968ac6c63e
+Assets\TextMesh Pro\Shaders\TMP_Bitmap-Custom-Atlas.shader.meta guid: 48bb5f55d8670e349b6e614913f9d910
+Assets\TextMesh Pro\Shaders\TMP_Bitmap-Mobile.shader.meta guid: 1e3b057af24249748ff873be7fafee47
+Assets\TextMesh Pro\Shaders\TMP_Bitmap.shader.meta guid: 128e987d567d4e2c824d754223b3f3b0
+Assets\TextMesh Pro\Shaders\TMP_SDF Overlay.shader.meta guid: dd89cf5b9246416f84610a006f916af7
+Assets\TextMesh Pro\Shaders\TMP_SDF SSD.shader.meta guid: 14eb328de4b8eb245bb7cea29e4ac00b
+Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile Masking.shader.meta guid: bc1ede39bf3643ee8e493720e4259791
+Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile Overlay.shader.meta guid: a02a7d8c237544f1962732b55a9aebf1
+Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile SSD.shader.meta guid: c8d12adcee749c344b8117cf7c7eb912
+Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile.shader.meta guid: fe393ace9b354375a9cb14cdbbc28be4
+Assets\TextMesh Pro\Shaders\TMP_SDF-Surface-Mobile.shader.meta guid: 85187c2149c549c5b33f0cdb02836b17
+Assets\TextMesh Pro\Shaders\TMP_SDF-Surface.shader.meta guid: f7ada0af4f174f0694ca6a487b8f543d
+Assets\TextMesh Pro\Shaders\TMP_SDF.shader.meta guid: 68e6db2ebdc24f95958faec2be5558d6
+Assets\TextMesh Pro\Shaders\TMP_Sprite.shader.meta guid: cf81c85f95fe47e1a27f6ae460cf182c
+Assets\TextMesh Pro\Shaders\TMPro_Mobile.cginc.meta guid: c334973cef89a9840b0b0c507e0377ab
+Assets\TextMesh Pro\Shaders\TMPro_Properties.cginc.meta guid: 3997e2241185407d80309a82f9148466
+Assets\TextMesh Pro\Shaders\TMPro_Surface.cginc.meta guid: d930090c0cd643c7b55f19a38538c162
+Assets\TextMesh Pro\Shaders\TMPro.cginc.meta guid: 407bc68d299748449bbf7f48ee690f8d
+Assets\TextMesh Pro\Sprites\EmojiOne Attribution.txt.meta guid: 381dcb09d5029d14897e55f98031fca5
+Assets\TextMesh Pro\Sprites\EmojiOne.json.meta guid: 8f05276190cf498a8153f6cbe761d4e6
+Assets\TextMesh Pro\Sprites\EmojiOne.png.meta guid: dffef66376be4fa480fb02b19edbe903

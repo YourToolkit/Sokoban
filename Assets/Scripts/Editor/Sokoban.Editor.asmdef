@@ -1,0 +1,6 @@
+{
+  "name": "Sokoban.Editor",
+  "rootNamespace": "Sokoban.EditorTools",
+  "references": ["Sokoban.Core", "Sokoban.Runtime", "Unity.TextMeshPro", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
+  "includePlatforms": ["Editor"]
+}

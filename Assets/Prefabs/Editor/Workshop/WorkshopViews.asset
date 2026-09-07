@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4a7434f9c77ae0141951e7f44226087b, type: 3}
+  m_Name: WorkshopViews
+  m_EditorClassIdentifier: 
+  Main: {fileID: 1685940280287693767, guid: 2f01e12fba3536c43b8d1e1d6edcd458, type: 3}
+  Entry: {fileID: 5714291361829303839, guid: 38b8615c440957d4fad15e858c16ae25, type: 3}
+  Dialogs:
+  - Key: Workshop menu dialog
+    Prefab: {fileID: 2938825044896689095, guid: f40cde063e7553e49a643ff823f96afe, type: 3}
+  - Key: Open level dialog
+    Prefab: {fileID: 4299273753001233672, guid: 376f8e088fa1c7e4da0ba3f561200cd0, type: 3}
+  - Key: Level settings dialog
+    Prefab: {fileID: 6047142778186303569, guid: e8a5798d5b991094a8a573c3081c25b1, type: 3}
+  - Key: Resize confirmation dialog
+    Prefab: {fileID: 79840712425722743, guid: 24f1b451a3803674eaaed86824eed97b, type: 3}
+  - Key: Unsaved changes dialog
+    Prefab: {fileID: 5472587507481046240, guid: 0a6037cb4f47f0c45b5957dc370f5c8d, type: 3}
+  - Key: Validation dialog
+    Prefab: {fileID: 1691772880458541569, guid: 07469b9bbff55e64b913bfa207975dfb, type: 3}

@@ -1,0 +1,7 @@
+{
+  "name": "Sokoban.PlayModeTests",
+  "rootNamespace": "Sokoban.Tests",
+  "references": ["Sokoban.Core", "Sokoban.Runtime", "UnityEngine.UI", "Unity.TextMeshPro"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "defineConstraints": ["UNITY_INCLUDE_TESTS", "UNITY_EDITOR"]
+}

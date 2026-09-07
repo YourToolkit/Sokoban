@@ -1,0 +1,6 @@
+{
+  "name": "Sokoban.Tests",
+  "references": ["Sokoban.Core", "Sokoban.Runtime", "Sokoban.Editor", "Unity.TextMeshPro"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Sokoban.Core",
+  "rootNamespace": "Sokoban.Core",
+  "references": [],
+  "noEngineReferences": true
+}

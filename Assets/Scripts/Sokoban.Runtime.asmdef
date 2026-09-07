@@ -1,0 +1,5 @@
+{
+  "name": "Sokoban.Runtime",
+  "rootNamespace": "Sokoban",
+  "references": ["Sokoban.Core", "UnityEngine.UI", "Unity.TextMeshPro"]
+}

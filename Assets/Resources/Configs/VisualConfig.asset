@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0f5ff8d1030cc15459c50ac3bcba97d7, type: 3}
+  m_Name: VisualConfig
+  m_EditorClassIdentifier: 
+  Floor: {fileID: 21300000, guid: 1f87f27674b6b7640b742c126ee128ce, type: 3}
+  Wall: {fileID: 21300000, guid: bd271b75fd462ad49972aa72a132286e, type: 3}
+  Goal: {fileID: 21300000, guid: a1ade9a9882c4024a881dab6fcb7d8a9, type: 3}
+  Player: {fileID: 21300000, guid: 137a4cd200946ff48bfb828117232966, type: 3}
+  Box: {fileID: 21300000, guid: ea1729a5bab52a947bcaaa4ff8e7ff22, type: 3}
+  BoxOnGoal: {fileID: 21300000, guid: 9392ec778b9dcd14ca182cdf2a309941, type: 3}
+  MoveSound: {fileID: 8300000, guid: 4edb3642a74f9b2419b0dceacc080ded, type: 3}
+  PushSound: {fileID: 8300000, guid: 5556303f4e4b47c4eb0c1e95a98e50af, type: 3}
+  BlockedSound: {fileID: 8300000, guid: e49a53755d0ef5b49be6cef1fa7fd2d7, type: 3}
+  WinSound: {fileID: 8300000, guid: 063bf737bb55a324eba919289d5d9f3e, type: 3}
