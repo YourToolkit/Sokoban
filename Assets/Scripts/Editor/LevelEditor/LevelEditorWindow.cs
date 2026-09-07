@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Sokoban.EditorTools
 {
-    public sealed class LevelEditorWindow : EditorWindow
+    public sealed partial class LevelEditorWindow : EditorWindow
     {
         private enum Brush { Floor, Wall, Goal, Player, Box, Erase }
         private const string ResourcesPath = "Assets/Resources/GameResources.asset";
@@ -73,6 +73,8 @@ namespace Sokoban.EditorTools
             EditorLevelAssetWriter.AssetSaved += OnAssetSaved;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
+            ElementCatalog.Changed -= OnElementCatalogChanged;
+            ElementCatalog.Changed += OnElementCatalogChanged;
             if (draft == null) CreateBlank();
             RefreshValidation();
             RefreshDirty();
@@ -84,6 +86,7 @@ namespace Sokoban.EditorTools
             Undo.undoRedoPerformed -= OnUndoRedo;
             EditorLevelAssetWriter.AssetSaved -= OnAssetSaved;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            ElementCatalog.Changed -= OnElementCatalogChanged;
         }
 
         private void OnDestroy()
@@ -142,6 +145,7 @@ namespace Sokoban.EditorTools
 
         private void OnGUI()
         {
+            RefreshElementRegistry();
             if (draft == null || draft.Data == null) CreateBlank();
             if (centeredCell == null)
             {
@@ -170,6 +174,7 @@ namespace Sokoban.EditorTools
                     using (new EditorGUILayout.VerticalScope(GUILayout.Width(250)))
                     {
                         DrawProperties();
+                        DrawInstanceProperties();
                         DrawCatalog();
                     }
                     using (new EditorGUILayout.VerticalScope())
@@ -254,11 +259,10 @@ namespace Sokoban.EditorTools
 
         private void DrawPalette()
         {
-            EditorGUILayout.Space(8);
-            brush = (Brush)GUILayout.Toolbar((int)brush, new[] { "1 地板", "2 墙", "3 目标", "4 玩家", "5 箱子", "6 擦除" });
+            DrawElementPalette();
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUILayout.Label("箱 = 箱子　人 = 玩家　菱形 = 目标", EditorStyles.miniLabel);
+                GUILayout.Label(selectElements ? "点选对象查看属性；拖动对象修改位置" : "拖动连续绘制，右键擦除", EditorStyles.miniLabel);
                 GUILayout.FlexibleSpace();
                 GUILayout.Label("缩放", GUILayout.Width(35));
                 cellSize = GUILayout.HorizontalSlider(cellSize, 22f, 58f, GUILayout.Width(95));
@@ -302,6 +306,7 @@ namespace Sokoban.EditorTools
                     GUI.Label(rect, "箱", centeredCell);
                 }
                 if (player) GUI.Label(rect, "人", centeredCell);
+                DrawElementCell(p, rect);
                 if (highlightedCell.HasValue && highlightedCell.Value == p) DrawOutline(rect, new Color(1f, 0.42f, 0.3f));
                 if (rect.Contains(evt.mousePosition))
                 {
@@ -328,6 +333,7 @@ namespace Sokoban.EditorTools
         private void ProcessPaint(Rect board, Event evt)
         {
             if (!GUI.enabled || draft.Data.Width < 2 || draft.Data.Width > 32 || draft.Data.Height < 2 || draft.Data.Height > 32) return;
+            if (ProcessElementSelection(board, evt)) return;
             if (evt.type == EventType.MouseUp && paintUndoGroup >= 0)
             {
                 Undo.CollapseUndoOperations(paintUndoGroup);
@@ -349,7 +355,7 @@ namespace Sokoban.EditorTools
             }
             if (!lastPaintedCell.HasValue || lastPaintedCell.Value != p)
             {
-                Paint(p, evt.button == 1 ? Brush.Erase : brush);
+                PaintElement(p, evt.button == 1 || brush == Brush.Erase);
                 lastPaintedCell = p;
             }
             evt.Use();
@@ -452,7 +458,7 @@ namespace Sokoban.EditorTools
             if ((desiredWidth < draft.Data.Width || desiredHeight < draft.Data.Height) &&
                 !EditorUtility.DisplayDialog("调整地图尺寸", "新边界以外的格子和对象会被移除，本操作可以撤销。", "调整尺寸", "取消")) return;
             RecordEdit("调整地图尺寸", true);
-            if (!LevelAuthoring.Resize(draft.Data, desiredWidth, desiredHeight)) return;
+            if (!LevelAuthoring.Resize(draft.Data, desiredWidth, desiredHeight, Registry)) return;
             draft.VerifiedSolution = "";
             FinishEdit();
         }
@@ -471,7 +477,7 @@ namespace Sokoban.EditorTools
             RefreshDirty();
         }
 
-        private void RefreshValidation() => issues = LevelValidator.Validate(draft == null ? null : draft.Data);
+        private void RefreshValidation() => issues = LevelValidator.Validate(draft == null ? null : draft.Data, Registry);
 
         private void RefreshDirty()
         {
@@ -500,7 +506,7 @@ namespace Sokoban.EditorTools
             ReplaceDraft();
             source = level;
             draft.Data = level.ToDefinition() ?? new LevelDefinition();
-            draft.VerifiedSolution = level.VerifiedSolution ?? "";
+            draft.VerifiedSolution = level.GetVerifiedSolution(Registry);
             FinishLoad();
         }
 
@@ -513,6 +519,8 @@ namespace Sokoban.EditorTools
 
         private void FinishLoad()
         {
+            LevelMigration.Upgrade(draft.Data, Registry);
+            selectedElementId = null; referenceProperty = null; elementDragStart = null;
             desiredWidth = Mathf.Clamp(draft.Data.Width, 2, 32);
             desiredHeight = Mathf.Clamp(draft.Data.Height, 2, 32);
             savedJson = JsonUtility.ToJson(draft);
@@ -553,7 +561,7 @@ namespace Sokoban.EditorTools
             if (!result.Success) return false;
             source = result.Asset;
             draft.Data = source.ToDefinition();
-            draft.VerifiedSolution = source.VerifiedSolution;
+            draft.VerifiedSolution = source.GetVerifiedSolution(Registry);
             if (makeNew) Undo.ClearUndo(draft);
             savedJson = JsonUtility.ToJson(draft);
             sourceJson = JsonUtility.ToJson(source);
@@ -569,6 +577,7 @@ namespace Sokoban.EditorTools
             var copy = CreateInstance<LevelAsset>();
             copy.Data = assignNewIdentity ? LevelAuthoring.Duplicate(draft.Data) : draft.Data.DeepClone();
             copy.VerifiedSolution = draft.VerifiedSolution;
+            if (!string.IsNullOrEmpty(copy.VerifiedSolution)) copy.VerifiedGameplaySignature = GameplayFingerprint.Compute(copy.Data, Registry);
             return copy;
         }
 
@@ -604,7 +613,7 @@ namespace Sokoban.EditorTools
             { Save(evt.shift); evt.Use(); return; }
             if (EditorGUIUtility.editingTextField || actionKey || evt.alt) return;
             if (evt.keyCode >= KeyCode.Alpha1 && evt.keyCode <= KeyCode.Alpha6)
-            { brush = (Brush)(evt.keyCode - KeyCode.Alpha1); evt.Use(); Repaint(); }
+            { brush = (Brush)(evt.keyCode - KeyCode.Alpha1); selectedTypeId = brush == Brush.Erase ? "floor" : brush.ToString().ToLowerInvariant(); selectElements = false; evt.Use(); Repaint(); }
         }
 
         private static LevelCatalog GetCatalog()

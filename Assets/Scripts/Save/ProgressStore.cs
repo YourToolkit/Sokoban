@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Sokoban.Core;
 using UnityEngine;
 
 namespace Sokoban.Runtime
@@ -10,6 +11,7 @@ namespace Sokoban.Runtime
     {
         public string LevelId;
         public int LayoutVersion;
+        public string GameplaySignature = "";
         public bool Completed;
         public int BestSteps;
         public int BestPushes;
@@ -22,7 +24,7 @@ namespace Sokoban.Runtime
         [Serializable]
         private sealed class SaveData
         {
-            public int Version = 2;
+            public int Version = 3;
             public List<ProgressRecord> Records = new List<ProgressRecord>();
         }
         private readonly string path;
@@ -48,7 +50,7 @@ namespace Sokoban.Runtime
             try
             {
                 var loaded = JsonUtility.FromJson<SaveData>(File.ReadAllText(path));
-                if (loaded == null || (loaded.Version != 1 && loaded.Version != 2) || loaded.Records == null)
+                if (loaded == null || (loaded.Version != 1 && loaded.Version != 2 && loaded.Version != 3) || loaded.Records == null)
                     throw new FormatException("Unsupported progress format.");
                 var ids = new HashSet<string>();
                 foreach (var record in loaded.Records)
@@ -58,7 +60,7 @@ namespace Sokoban.Runtime
                         throw new FormatException("Invalid room record.");
                 }
                 // Version 1 did not store layout versions; missing fields deserialize to zero.
-                loaded.Version = 2;
+                loaded.Version = 3;
                 data = loaded;
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException || ex is FormatException)
@@ -71,21 +73,53 @@ namespace Sokoban.Runtime
         }
         public ProgressRecord Get(string levelId, int layoutVersion = 0) =>
             data.Records.Find(r => r.LevelId == levelId && r.LayoutVersion == layoutVersion)?.Clone();
+
+        /// <summary>Scores are valid only for the effective rules frozen into this level session.</summary>
+        public ProgressRecord Get(LevelDefinition level, ElementRegistry registry = null)
+        {
+            if (level == null) return null;
+            registry = registry ?? ElementRegistry.BuiltIns();
+            if (ElementValidation.Validate(level, registry).Count > 0) return null;
+            var record = data.Records.Find(r => r.LevelId == level.Id && r.LayoutVersion == level.LayoutVersion);
+            if (record == null) return null;
+            string signature = GameplayFingerprint.Compute(level, registry);
+            if (string.IsNullOrEmpty(record.GameplaySignature))
+            {
+                // Old files may be claimed only by an unchanged basic-rule level.
+                if (!GameplayFingerprint.IsLegacyCompatible(level, registry)) return null;
+                record.GameplaySignature = signature;
+                Save();
+            }
+            return record.GameplaySignature == signature ? record.Clone() : null;
+        }
+
+        public bool RecordWin(LevelDefinition level, int steps, int pushes, ElementRegistry registry = null)
+        {
+            if (level == null) throw new ArgumentNullException(nameof(level));
+            registry = registry ?? ElementRegistry.BuiltIns();
+            if (ElementValidation.Validate(level, registry).Count > 0) throw new ArgumentException("不能为结构或机制配置无效的关卡记录成绩。", nameof(level));
+            return RecordWinWithSignature(level.Id, steps, pushes, level.LayoutVersion, GameplayFingerprint.Compute(level, registry));
+        }
+
         public bool RecordWin(string id, int steps, int pushes, int layoutVersion = 0)
+            => RecordWinWithSignature(id, steps, pushes, layoutVersion, "");
+
+        private bool RecordWinWithSignature(string id, int steps, int pushes, int layoutVersion, string signature)
         {
             if (string.IsNullOrWhiteSpace(id) || layoutVersion < 0 || steps < 0 || pushes < 0 || pushes > steps)
                 throw new ArgumentException("Invalid completed-room score.");
             var record = data.Records.Find(r => r.LevelId == id);
             if (record == null)
             {
-                record = new ProgressRecord { LevelId = id, LayoutVersion = layoutVersion, Completed = true, BestSteps = steps, BestPushes = pushes };
+                record = new ProgressRecord { LevelId = id, LayoutVersion = layoutVersion, GameplaySignature = signature, Completed = true, BestSteps = steps, BestPushes = pushes };
                 data.Records.Add(record);
             }
             else
             {
-                if (record.LayoutVersion != layoutVersion)
+                if (record.LayoutVersion != layoutVersion || record.GameplaySignature != signature)
                 {
                     record.LayoutVersion = layoutVersion;
+                    record.GameplaySignature = signature;
                     record.BestSteps = steps;
                     record.BestPushes = pushes;
                 }
@@ -94,6 +128,11 @@ namespace Sokoban.Runtime
                 if (steps < record.BestSteps || (steps == record.BestSteps && pushes < record.BestPushes))
                 { record.BestSteps = steps; record.BestPushes = pushes; }
             }
+            return Save();
+        }
+
+        private bool Save()
+        {
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path));

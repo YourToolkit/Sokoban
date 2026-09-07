@@ -16,7 +16,7 @@ namespace Sokoban.Runtime
     }
 
     /// <summary>Renders committed board states. Never makes gameplay decisions.</summary>
-    public sealed class BoardView : MonoBehaviour
+    public sealed partial class BoardView : MonoBehaviour
     {
         public static readonly Color FloorTint = Color.white;
         public static readonly Color WallTint = Color.white;
@@ -28,7 +28,6 @@ namespace Sokoban.Runtime
         private SpriteRenderer brushGhost;
         private readonly List<SpriteRenderer> boxes = new List<SpriteRenderer>();
         private readonly List<SpriteRenderer> highlights = new List<SpriteRenderer>();
-        private readonly List<GridPos> boxPositions = new List<GridPos>();
         private readonly List<UnityEngine.Object> owned = new List<UnityEngine.Object>();
         private LevelDefinition definition;
         [SerializeField] private VisualConfig visuals;
@@ -82,56 +81,25 @@ namespace Sokoban.Runtime
             FitCamera();
         }
 
-        public void Show(LevelDefinition level, BoardState state)
+        public void Show(LevelDefinition level, BoardState state, ElementRegistry registry = null)
         {
             editorView = false;
-            definition = level;
-            Render(level, true, state.Player, state.Boxes);
+            presentedRegistry = (registry ?? CurrentElements()).Snapshot();
+            definition = LevelMigration.Snapshot(level, presentedRegistry);
+            RenderElements(state, true);
             ResetView();
         }
 
-        public void ShowDraft(LevelDefinition level, bool resetView = false)
+        public void ShowDraft(LevelDefinition level, bool resetView = false, ElementRegistry registry = null)
         {
             if (level == null) return;
             bool changedSize = definition == null || definition.Width != level.Width || definition.Height != level.Height;
             editorView = true;
-            definition = level;
-            Render(level, level.HasPlayer, level.PlayerStart, level.Boxes ?? Array.Empty<GridPos>());
+            presentedRegistry = (registry ?? CurrentElements()).Snapshot();
+            definition = LevelMigration.Snapshot(level, presentedRegistry);
+            RenderElements(GameSession.Preview(definition, presentedRegistry), true);
             if (resetView || changedSize) ResetView();
             else FitCamera();
-        }
-
-        private void Render(LevelDefinition level, bool hasPlayer, GridPos playerPosition, IReadOnlyList<GridPos> positions)
-        {
-            CancelAnimation();
-            terrainMap.ClearAllTiles();
-            goalMap.ClearAllTiles();
-            ClearHighlights();
-            for (int y = 0; y < Mathf.Clamp(level.Height, 0, 32); y++)
-            for (int x = 0; x < Mathf.Clamp(level.Width, 0, 32); x++)
-            {
-                var p = new GridPos(x, y);
-                terrainMap.SetTile(new Vector3Int(x, y, 0), level.CellAt(p) == CellType.Wall ? wallTile : floorTile);
-                if (level.IsGoal(p)) goalMap.SetTile(new Vector3Int(x, y, 0), goalTile);
-            }
-            player.gameObject.SetActive(hasPlayer && level.IsInside(playerPosition));
-            player.transform.position = Position(playerPosition);
-            while (boxes.Count < positions.Count)
-                {
-                var box = Instantiate(boxPrefab, boardRoot, false);
-                box.name = "Box " + (boxes.Count + 1); boxes.Add(box);
-            }
-            boxPositions.Clear();
-            for (int i = 0; i < boxes.Count; i++)
-            {
-                boxes[i].gameObject.SetActive(i < positions.Count && level.IsInside(positions[i]));
-                if (i >= positions.Count) continue;
-                boxPositions.Add(positions[i]);
-                boxes[i].transform.position = Position(positions[i]);
-                UpdateBox(boxes[i], level.IsGoal(positions[i]));
-            }
-            boardRoot.gameObject.SetActive(true);
-            boardCamera.gameObject.SetActive(true);
         }
 
         public void Highlight(IEnumerable<GridPos> cells, bool valid = true)
@@ -236,14 +204,7 @@ namespace Sokoban.Runtime
 
         public void Sync(BoardState state)
         {
-            CancelAnimation();
-            player.transform.position = Position(state.Player);
-            for (int i = 0; i < state.Boxes.Count && i < boxes.Count; i++)
-            {
-                boxPositions[i] = state.Boxes[i];
-                boxes[i].transform.position = Position(state.Boxes[i]);
-                UpdateBox(boxes[i], definition.IsGoal(state.Boxes[i]));
-            }
+            RenderElements(state, false);
         }
 
         public void Animate(MoveResult move, BoardState state, float duration, Action complete)
@@ -262,35 +223,34 @@ namespace Sokoban.Runtime
         {
             StopAllCoroutines();
             IsAnimating = false;
+            playbackPaused = false;
             animationCompleted = null;
         }
 
         private IEnumerator AnimateRoutine(MoveResult move, BoardState state, float duration)
         {
             IsAnimating = true;
-            int boxIndex = -1;
-            if (move.BoxFrom.HasValue)
-                for (int i = 0; i < boxPositions.Count; i++)
-                    if (boxPositions[i].Equals(move.BoxFrom.Value)) { boxIndex = i; break; }
-            Vector3 from = Position(move.From), to = Position(move.To);
-            float elapsed = 0;
-            while (elapsed < duration)
+            foreach (var frame in move.Frames)
             {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.SmoothStep(0, 1, elapsed / duration);
-                player.transform.position = PixelPosition(Vector3.Lerp(from, to, t));
-                if (boxIndex >= 0 && move.BoxTo.HasValue)
-                    boxes[boxIndex].transform.position = PixelPosition(Vector3.Lerp(Position(move.BoxFrom.Value), Position(move.BoxTo.Value), t));
-                yield return null;
+                ApplyElementState(frame.Before);
+                float elapsed = 0;
+                while (elapsed < duration)
+                {
+                    if (playbackPaused) { yield return null; continue; }
+                    elapsed += Time.unscaledDeltaTime;
+                    float t = Mathf.SmoothStep(0, 1, elapsed / duration);
+                    foreach (var movement in frame.Moves)
+                    {
+                        var renderer = RendererFor(movement.Id);
+                        if (renderer != null) renderer.transform.position = PixelPosition(Vector3.Lerp(Position(movement.From), Position(movement.To), t));
+                    }
+                    yield return null;
+                }
+                while (playbackPaused) yield return null;
+                ApplyElementState(frame.After);
+                PlayElementChanges(frame);
             }
-            // Sync by position, so presentation does not rely on a state collection's ordering.
-            player.transform.position = to;
-            if (boxIndex >= 0 && move.BoxTo.HasValue)
-            {
-                boxPositions[boxIndex] = move.BoxTo.Value;
-                boxes[boxIndex].transform.position = Position(move.BoxTo.Value);
-                UpdateBox(boxes[boxIndex], definition.IsGoal(move.BoxTo.Value));
-            }
+            ApplyElementState(state);
             IsAnimating = false;
             var callback = animationCompleted;
             animationCompleted = null;
@@ -307,6 +267,7 @@ namespace Sokoban.Runtime
             const float duration = .13f;
             while (elapsed < duration)
             {
+                if (playbackPaused) { yield return null; continue; }
                 elapsed += Time.unscaledDeltaTime;
                 player.transform.position = PixelPosition(origin + vector * (.125f * Mathf.Sin(Mathf.Clamp01(elapsed / duration) * Mathf.PI)));
                 yield return null;
@@ -389,18 +350,6 @@ namespace Sokoban.Runtime
             renderer.transform.localScale = Vector3.one * ((sprite != null ? 1f : size) / Mathf.Max(.001f, extent));
             renderer.sortingOrder = order;
             return renderer;
-        }
-
-        private Sprite BoxSprite(bool onGoal) => visuals == null ? null : onGoal && visuals.BoxOnGoal != null ? visuals.BoxOnGoal : visuals.Box;
-
-        private void UpdateBox(SpriteRenderer renderer, bool onGoal)
-        {
-            var sprite = BoxSprite(onGoal);
-            if (sprite != null)
-            {
-                renderer.sprite = sprite;
-            }
-            else renderer.color = onGoal ? UiFactory.Teal : UiFactory.Gold;
         }
 
         private Sprite FallbackSprite()

@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8501050386a84f78a6cc1eaddba788ec, type: 3}
+  m_Name: pressure-plate
+  m_EditorClassIdentifier: 
+  Data:
+    Id: pressure-plate
+    Name: "\u538B\u529B\u677F"
+    Role: 5
+    Mechanics: 03000000
+    MechanicIds: []
+    Defaults: []
+    Properties:
+    - Key: targetDoors
+      Name: "\u5173\u8054\u95E8"
+      Kind: 6
+      DefaultValue:
+        Key: targetDoors
+        Kind: 6
+        BoolValue: 0
+        IntValue: 0
+        FloatValue: 0
+        StringValue: 
+        StringValues: []
+        RawValue: 
+      Min: -3.4028235e+38
+      Max: 3.4028235e+38
+      Options: []
+      ReferenceRole: 5
+      ReferenceMechanic: 4
+    RulesVersion: 1
+  Icon: {fileID: 21300000, guid: 6316def2736f468fa29df84a812d1403, type: 3}
+  Sprite: {fileID: 21300000, guid: 6316def2736f468fa29df84a812d1403, type: 3}
+  ActiveSprite: {fileID: 21300000, guid: 7cea1240b26f45cdb9299057456c6b92, type: 3}
+  Prefab: {fileID: 0}
+  MoveSound: {fileID: 0}
+  ActivateSound: {fileID: 0}
+  DeactivateSound: {fileID: 0}
+  StatePresentations: []

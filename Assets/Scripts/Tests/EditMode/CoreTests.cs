@@ -390,6 +390,17 @@ namespace Sokoban.Tests
             Assert.That(actual.Steps, Is.EqualTo(expected.Steps));
             Assert.That(actual.Pushes, Is.EqualTo(expected.Pushes));
             Assert.That(actual.IsWon, Is.EqualTo(expected.IsWon));
+            Assert.That(actual.GoalsPlaced, Is.EqualTo(expected.GoalsPlaced));
+            Assert.That(actual.GoalsTotal, Is.EqualTo(expected.GoalsTotal));
+            Assert.That(actual.Elements.Count, Is.EqualTo(expected.Elements.Count));
+            for (int i = 0; i < expected.Elements.Count; i++)
+            {
+                var a = actual.Elements[i]; var e = expected.Elements[i];
+                Assert.That(a.Id, Is.EqualTo(e.Id)); Assert.That(a.TypeId, Is.EqualTo(e.TypeId)); Assert.That(a.Role, Is.EqualTo(e.Role));
+                Assert.That(a.Position, Is.EqualTo(e.Position)); Assert.That(a.Active, Is.EqualTo(e.Active)); Assert.That(a.OnGoal, Is.EqualTo(e.OnGoal));
+                Assert.That(a.State.Select(value => value.Key + "/" + value.Kind + "/" + value.CanonicalValue()),
+                    Is.EquivalentTo(e.State.Select(value => value.Key + "/" + value.Kind + "/" + value.CanonicalValue())));
+            }
         }
     }
 }

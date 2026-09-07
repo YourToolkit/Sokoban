@@ -170,8 +170,10 @@ namespace Sokoban.Tests
             var workshop = app.Workshop;
             yield return null;
             Canvas.ForceUpdateCanvases();
-            var icons = app.GetComponentsInChildren<WorkshopPointerHint>();
+            var tools = (WorkshopTool[])Enum.GetValues(typeof(WorkshopTool));
+            var icons = Array.ConvertAll(tools, tool => workshop.View.Get<UnityEngine.UI.Button>("Tool " + tool).GetComponent<WorkshopPointerHint>());
             Assert.That(icons.Length, Is.EqualTo(7));
+            Assert.That(icons, Is.Unique, "Each drawing tool must bind a different real control.");
             var raycast = typeof(RuntimeWorkshop).GetMethod("IsPointerOverUi", BindingFlags.Instance | BindingFlags.NonPublic);
             foreach (var icon in icons)
             {
@@ -212,8 +214,14 @@ namespace Sokoban.Tests
             workshop.SetDocument(TestRoom());
             yield return null;
             Canvas.ForceUpdateCanvases();
-            var wallButton = app.Workshop.View.Get<RectTransform>("Element Wall");
+            var elementList = workshop.View.Get<UiList>("Element list");
+            var wallView = workshop.FindElementView("wall");
+            Assert.That(elementList.Items, Does.Contain(wallView));
+            var wallButton = wallView.Get<RectTransform>("Element button");
             Assert.That(wallButton, Is.Not.Null);
+            wallView.Get<UnityEngine.UI.Button>("Element button").OnPointerClick(new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+                { button = UnityEngine.EventSystems.PointerEventData.InputButton.Left });
+            Assert.That(workshop.SelectedTypeId, Is.EqualTo("wall"));
             Vector2 buttonPoint = RectTransformUtility.WorldToScreenPoint(null, wallButton.TransformPoint(wallButton.rect.center));
             var raycast = typeof(RuntimeWorkshop).GetMethod("IsPointerOverUi", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That((bool)raycast.Invoke(workshop, new object[] { buttonPoint }), Is.True);
@@ -276,8 +284,7 @@ namespace Sokoban.Tests
             Assert.That(app.Session.State.Boxes[0], Is.EqualTo(new GridPos(3, 2)));
             app.Move(Direction.Right);
             app.Undo();
-            app.Restart();
-            Assert.That(app.Session.State.Steps, Is.EqualTo(1), "Input while a move animates must not enqueue another operation.");
+            Assert.That(app.Session.State.Steps, Is.EqualTo(1), "Movement and undo while animating must not enqueue another operation; explicit restart is tested separately.");
             yield return WaitForBoard();
 
             app.Undo();
@@ -321,10 +328,14 @@ namespace Sokoban.Tests
             app.Move(Direction.Right);
             app.Pause();
             Assert.That(app.CurrentScreen, Is.EqualTo(GameController.ScreenState.Paused));
-            yield return WaitForBoard();
+            var pausedPosition = app.Board.PlayerRenderer.transform.position;
+            yield return new WaitForSecondsRealtime(.25f);
+            Assert.That(app.Board.PlayerRenderer.transform.position, Is.EqualTo(pausedPosition));
+            Assert.That(app.Board.IsAnimating, Is.True);
             Assert.That(app.CurrentScreen, Is.EqualTo(GameController.ScreenState.Paused));
             Assert.That(app.Session.IsWon, Is.True);
             app.Resume();
+            yield return WaitForBoard();
             Assert.That(app.CurrentScreen, Is.EqualTo(GameController.ScreenState.Complete));
             Assert.That(app.IsPlaytest, Is.True);
             Assert.That(app.Session.State.Steps, Is.EqualTo(2));

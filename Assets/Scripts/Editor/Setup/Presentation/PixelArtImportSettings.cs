@@ -4,28 +4,20 @@ using UnityEngine;
 
 namespace Sokoban.EditorTools
 {
-    /// <summary>Keeps the six authored gameplay sprites on one Unity import convention.</summary>
+    /// <summary>Sprites under the gameplay sprite directory share the element import convention.</summary>
     internal sealed class PixelArtImportSettings : AssetPostprocessor
     {
-        private static readonly string[] GameplaySprites =
-        {
-            "Assets/Sprites/Floor.png",
-            "Assets/Sprites/Wall.png",
-            "Assets/Sprites/Goal.png",
-            "Assets/Sprites/Player.png",
-            "Assets/Sprites/Crate.png",
-            "Assets/Sprites/CrateDocked.png"
-        };
-
         private void OnPreprocessTexture()
         {
-            if (Array.IndexOf(GameplaySprites, assetPath) < 0) return;
+            if (!assetPath.StartsWith("Assets/Sprites/", StringComparison.OrdinalIgnoreCase)) return;
+            if (assetPath.StartsWith("Assets/Sprites/Editor/", StringComparison.OrdinalIgnoreCase)) return;
             Apply((TextureImporter)assetImporter, 32);
         }
 
         internal static void Apply(TextureImporter importer, int pixelsPerUnit)
         {
             importer.textureType = TextureImporterType.Sprite;
+            importer.textureShape = TextureImporterShape.Texture2D;
             importer.spriteImportMode = SpriteImportMode.Single;
             importer.spritePixelsPerUnit = pixelsPerUnit;
             importer.filterMode = FilterMode.Point;

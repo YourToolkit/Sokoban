@@ -51,6 +51,7 @@ namespace Sokoban.EditorTools
             LevelAsset destination = null;
             LevelDefinition oldDefinition = null;
             string oldSolution = null;
+            string oldSolutionSignature = null;
             LevelCatalog catalog = null;
             List<LevelAsset> oldCatalogEntries = null;
             string path = null;
@@ -67,8 +68,10 @@ namespace Sokoban.EditorTools
                     return Failure("地图尺寸或地形数组损坏，请修复后再保存。");
 
                 bool makeNew = target == null || intent == LevelSaveIntent.SaveAs;
-                var definition = snapshot.DeepClone();
-                bool layoutChanged = target != null && target.Data != null && !LevelAuthoring.LayoutEquals(target.Data, definition);
+                var registry = LoadElements();
+                var definition = LevelMigration.Snapshot(snapshot, registry);
+                bool layoutChanged = target != null && target.Data != null &&
+                    !LevelAuthoring.LayoutEquals(LevelMigration.Snapshot(target.Data, registry), definition);
                 if (makeNew)
                 {
                     definition.Id = Guid.NewGuid().ToString("N");
@@ -86,7 +89,7 @@ namespace Sokoban.EditorTools
                 bool addToCatalog = intent == LevelSaveIntent.SaveAndAddToCatalog;
                 if (published || addToCatalog)
                 {
-                    var issues = LevelValidator.Validate(definition);
+                    var issues = LevelValidator.Validate(definition, registry);
                     if (issues.Count > 0) return Failure("正式关卡必须通过校验：" + issues[0].Message + " 可另存为草稿保留修改。");
                 }
                 if (addToCatalog && (catalog == null || catalog.Levels == null)) return Failure("关卡目录未配置，请先准备工程资源。");
@@ -114,11 +117,19 @@ namespace Sokoban.EditorTools
                 }
                 if (addToCatalog && (makeNew || !catalog.Levels.Contains(target))) EnsureWritable(AssetDatabase.GetAssetPath(catalog));
 
+                string signature = GameplayFingerprint.Compute(definition, registry);
+                bool staleSolution = target != null && !string.IsNullOrEmpty(target.VerifiedSolution) &&
+                    target.GetVerifiedSolution(registry) != target.VerifiedSolution && verifiedSolution == target.VerifiedSolution;
+                string solution = layoutChanged || staleSolution ? "" : verifiedSolution ?? "";
+                // Invalid drafts remain serializable, but cannot carry a claim of a valid solution.
+                if (LevelValidator.Validate(definition, registry).Count > 0) solution = "";
+
                 if (makeNew)
                 {
                     destination = ScriptableObject.CreateInstance<LevelAsset>();
                     destination.Data = definition;
-                    destination.VerifiedSolution = layoutChanged ? "" : verifiedSolution ?? "";
+                    destination.VerifiedSolution = solution;
+                    destination.VerifiedGameplaySignature = string.IsNullOrEmpty(solution) ? "" : signature;
                     AssetDatabase.CreateAsset(destination, path);
                     created = true;
                     if (!AssetDatabase.Contains(destination) || !File.Exists(path)) throw new IOException("未能创建关卡资产。");
@@ -127,8 +138,10 @@ namespace Sokoban.EditorTools
                 {
                     oldDefinition = destination.Data?.DeepClone();
                     oldSolution = destination.VerifiedSolution;
+                    oldSolutionSignature = destination.VerifiedGameplaySignature;
                     destination.Data = definition;
-                    destination.VerifiedSolution = layoutChanged ? "" : verifiedSolution ?? "";
+                    destination.VerifiedSolution = solution;
+                    destination.VerifiedGameplaySignature = string.IsNullOrEmpty(solution) ? "" : signature;
                     assetTouched = true;
                 }
                 EditorUtility.SetDirty(destination);
@@ -161,6 +174,7 @@ namespace Sokoban.EditorTools
                 {
                     destination.Data = oldDefinition;
                     destination.VerifiedSolution = oldSolution;
+                    destination.VerifiedGameplaySignature = oldSolutionSignature;
                     TryRestore(destination);
                 }
                 if (created && destination != null && !string.IsNullOrEmpty(path) && AssetDatabase.LoadMainAssetAtPath(path) == destination)
@@ -174,6 +188,7 @@ namespace Sokoban.EditorTools
         }
 
         private LevelCatalog LoadCatalog() => AssetDatabase.LoadAssetAtPath<GameResources>(resourcesPath)?.Catalog;
+        private ElementRegistry LoadElements() => AssetDatabase.LoadAssetAtPath<GameResources>(resourcesPath)?.Elements?.Snapshot() ?? ElementRegistry.BuiltIns();
         private static LevelSaveResult Failure(string message) => new LevelSaveResult(false, null, message);
         private static void TryRestore(UnityEngine.Object asset)
         {

@@ -122,7 +122,8 @@ namespace Sokoban.Tests
             Assert.That(AssetDatabase.GetAssetPath(reloadedCatalog.Levels[0]), Is.EqualTo(assetPath));
             Assert.That(reloadedCatalog.Levels[0].Data.Id, Is.EqualTo(id));
             string oldAsset = File.ReadAllText(assetPath);
-            var invalid = result.Asset.ToDefinition(); invalid.HasPlayer = false;
+            var invalid = result.Asset.ToDefinition();
+            LevelAuthoring.Paint(invalid, invalid.PlayerStart, LevelBrush.Erase);
 
             var rejected = writer.Save(result.Asset, invalid, "", LevelSaveIntent.Save);
 

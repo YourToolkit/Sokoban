@@ -25,7 +25,7 @@ namespace Sokoban.Tests
             Assert.That(fallback.isMultiAtlasTexturesEnabled, Is.True);
             var source = AssetDatabase.LoadAssetAtPath<Font>(ChineseFontSetup.SourcePath);
             Assert.That(fallback.sourceFontFile, Is.SameAs(source));
-            const string fixedUi = "推箱子关卡选择编辑暂停继续游戏撤销重开步数推动目标保存试玩返回设置中文方向键 Z R ESC";
+            const string fixedUi = "推箱子关卡选择编辑暂停继续游戏撤销重开步数推动目标保存试玩返回设置中文方向键滑行箱压力板关联门对象属性继承默认实例覆盖恢复默认切换同格对象完成关联 Z R ESC";
             foreach (char character in fixedUi)
                 Assert.That(font.HasCharacter(character, false, false), Is.True, "Missing fixed UI character: " + character);
 

@@ -30,14 +30,14 @@ namespace Sokoban.EditorTools
         public static void Run()
         {
             var args = Environment.GetCommandLineArgs();
-            string output = Argument(args, "-sokoban-capture") ?? "docs/images/editor-1600x900";
+            string output = Argument(args, "-sokoban-capture") ?? "Logs/GameViewCapture/editor-1600x900";
             string size = Argument(args, "-sokoban-size") ?? Argument(args, "-ScreenSize") ?? "1600x900";
             ParseSize(size, out var width, out var height);
             Begin(output, width, height, true);
         }
 
         [MenuItem("推箱子/验收/截取游戏与编辑器界面", priority = 85)]
-        public static void RunFromMenu() { Begin("docs/images/editor-1600x900", 1600, 900, false); }
+        public static void RunFromMenu() { Begin("Logs/GameViewCapture/editor-1600x900", 1600, 900, false); }
 
         private static void Begin(string output, int width, int height, bool exitWhenDone)
         {

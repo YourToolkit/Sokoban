@@ -54,6 +54,7 @@ namespace Sokoban.EditorTools
             public string DefinitionJson;
             public string Solution;
             public string OriginalSolution;
+            public string OriginalGameplaySignature;
             public string OriginalProduct;
             public string OriginalProgressDirectory;
             public FileSnapshot[] OriginalProgress;
@@ -89,8 +90,9 @@ namespace Sokoban.EditorTools
                 Require(resources != null && resources.Catalog != null && resources.Catalog.Levels.Count > 0,
                     "Prepared game resources and at least one catalog room are required.");
                 var level = resources.Catalog.Levels[0];
-                Require(level != null && LevelValidator.Validate(level.Data).Count == 0, "The first room must be structurally valid.");
-                string solution = level.VerifiedSolution;
+                var registry = resources.Elements?.Snapshot() ?? ElementRegistry.BuiltIns();
+                Require(level != null && LevelValidator.Validate(level.Data, registry).Count == 0, "The first room must be structurally valid.");
+                string solution = level.GetVerifiedSolution(registry);
                 if (string.IsNullOrEmpty(solution))
                 {
                     var expected = BuiltInLevels.Create();
@@ -108,6 +110,7 @@ namespace Sokoban.EditorTools
                     DefinitionJson = JsonUtility.ToJson(level.Data),
                     Solution = solution,
                     OriginalSolution = level.VerifiedSolution,
+                    OriginalGameplaySignature = level.VerifiedGameplaySignature,
                     OriginalProduct = PlayerSettings.productName,
                     OriginalProgressDirectory = originalDirectory,
                     OriginalProgress = CaptureFiles(originalDirectory),
@@ -249,6 +252,7 @@ namespace Sokoban.EditorTools
             var level = AssetDatabase.LoadAssetAtPath<LevelAsset>(state.LevelPath);
             Require(level != null && JsonUtility.ToJson(level.Data) == state.DefinitionJson, "Playtest mutated the room asset definition.");
             Require(level.VerifiedSolution == state.OriginalSolution, "Playtest mutated the room's verified solution.");
+            Require(level.VerifiedGameplaySignature == state.OriginalGameplaySignature, "Playtest mutated the room's verified gameplay signature.");
             AssertFilesUnchanged(state.OriginalProgressDirectory, state.OriginalProgress, "User progress");
             AssertFilesUnchanged(state.SmokeProgressDirectory, state.SmokeProgress, "Smoke progress");
         }

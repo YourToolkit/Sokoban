@@ -76,6 +76,7 @@ namespace Sokoban.EditorTools
             PlayerSettings.SetScriptingBackend(BuildTargetGroup.Standalone, ScriptingImplementation.Mono2x);
             AssetDatabase.SaveAssets();
             PresentationSetup.Ensure();
+            MechanicsContentSetup.Install();
             ValidateCatalog();
             Debug.Log("推箱子资源已准备好。打开 Game 场景或使用关卡编辑器。");
         }
@@ -96,16 +97,20 @@ namespace Sokoban.EditorTools
             if (resources.Catalog.Levels == null || resources.Catalog.Levels.Count == 0)
                 throw new BuildFailedException("关卡目录至少需要一个关卡。");
             var ids = new HashSet<string>();
+            var registry = resources.Elements?.Snapshot() ?? ElementRegistry.BuiltIns();
+            var typeErrors = registry.ValidateTypes();
+            if (typeErrors.Count > 0) throw new BuildFailedException("元素目录配置有误：" + typeErrors[0].Message);
             foreach (var asset in resources.Catalog.Levels)
             {
                 if (asset == null) throw new BuildFailedException("关卡目录存在丢失的资源引用。");
-                var errors = LevelValidator.Validate(asset.Data);
+                var errors = LevelValidator.Validate(asset.Data, registry);
                 if (errors.Count > 0) throw new BuildFailedException(asset.name + ": " + errors[0]);
                 if (!ids.Add(asset.Data.Id)) throw new BuildFailedException("关卡编号重复：" + asset.Data.Id);
-                if (!string.IsNullOrEmpty(asset.VerifiedSolution))
+                string solution = asset.GetVerifiedSolution(registry);
+                if (!string.IsNullOrEmpty(solution))
                 {
-                    var game = new GameSession(asset.ToDefinition());
-                    foreach (char action in asset.VerifiedSolution)
+                    var game = new GameSession(asset.ToDefinition(), registry);
+                    foreach (char action in solution)
                     {
                         Direction d;
                         switch (action) { case 'U': d = Direction.Up; break; case 'R': d = Direction.Right; break;

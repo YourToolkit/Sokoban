@@ -30,6 +30,11 @@ namespace Sokoban.Core
     /// <summary>A detached, complete cell snapshot. Coordinates are local to its lower-left corner.</summary>
     public sealed class LevelRegion
     {
+        internal readonly string[] TerrainIds;
+        internal readonly ElementInstance[] Instances;
+        internal readonly bool IsModern;
+        internal readonly ElementRegistry Registry;
+        public IReadOnlyList<ElementInstance> Elements => Array.AsReadOnly(Array.ConvertAll(Instances, e => e?.DeepClone()));
         private readonly CellType[] cells;
         private readonly bool[] goals;
         private readonly bool[] boxes;
@@ -38,9 +43,22 @@ namespace Sokoban.Core
         public GridPos? Player { get; }
         public bool HasPlayer => Player.HasValue;
 
-        internal LevelRegion(LevelDefinition level, GridRect area)
+        internal LevelRegion(LevelDefinition level, GridRect area, ElementRegistry registry = null)
         {
+            Registry = (registry ?? ElementRegistry.BuiltIns()).Snapshot();
+            IsModern = level.SchemaVersion > 0;
+            var normalized = LevelMigration.Snapshot(level, Registry);
+            LevelMigration.SyncLegacy(normalized, Registry);
+            level = normalized;
             Width = area.Width; Height = area.Height;
+            TerrainIds = new string[Width * Height];
+            var instances = new List<ElementInstance>();
+            foreach (var value in normalized.Elements ?? Array.Empty<ElementInstance>())
+                if (value != null && area.Contains(value.Position))
+                {
+                    var copy = value.DeepClone(); copy.Position = new GridPos(copy.Position.X - area.MinX, copy.Position.Y - area.MinY); instances.Add(copy);
+                }
+            Instances = instances.ToArray();
             cells = new CellType[Width * Height];
             goals = new bool[cells.Length];
             boxes = new bool[cells.Length];
@@ -50,6 +68,7 @@ namespace Sokoban.Core
                 var p = new GridPos(area.MinX + x, area.MinY + y);
                 int index = y * Width + x;
                 cells[index] = level.CellAt(p);
+                TerrainIds[index] = normalized.TerrainTypeIds[p.Y * normalized.Width + p.X];
                 goals[index] = level.IsGoal(p);
                 boxes[index] = Array.IndexOf(level.Boxes ?? Array.Empty<GridPos>(), p) >= 0;
             }
@@ -60,6 +79,7 @@ namespace Sokoban.Core
         public CellType TerrainAt(int x, int y) => cells[Index(x, y)];
         public bool IsGoal(int x, int y) => goals[Index(x, y)];
         public bool HasBox(int x, int y) => boxes[Index(x, y)];
+        public string TerrainTypeAt(int x, int y) => TerrainIds[Index(x, y)];
         private int Index(int x, int y)
         {
             if (x < 0 || y < 0 || x >= Width || y >= Height) throw new ArgumentOutOfRangeException(nameof(x));
@@ -68,7 +88,7 @@ namespace Sokoban.Core
     }
 
     /// <summary>Shared, engine-free authoring rules. Every batch is committed as one layout transaction.</summary>
-    public static class LevelAuthoring
+    public static partial class LevelAuthoring
     {
         public static LevelDefinition CreateBlank(int width = 8, int height = 8)
         {
@@ -95,12 +115,14 @@ namespace Sokoban.Core
 
         public static bool Paint(LevelDefinition draft, GridPos cell, LevelBrush brush)
         {
+            if (draft != null && draft.SchemaVersion > 0) return Paint(draft, cell, BrushType(brush), ElementRegistry.BuiltIns());
             if (!CanEdit(draft) || !draft.IsInside(cell)) return false;
             return ApplyCells(draft, new[] { cell }, brush);
         }
 
         public static bool PaintLine(LevelDefinition draft, GridPos from, GridPos to, LevelBrush brush)
         {
+            if (draft != null && draft.SchemaVersion > 0) return PaintLine(draft, from, to, BrushType(brush), ElementRegistry.BuiltIns());
             if (brush == LevelBrush.Player || !CanEdit(draft) || !draft.IsInside(from) || !draft.IsInside(to)) return false;
             var cells = new List<GridPos>();
             int x = from.X, y = from.Y;
@@ -120,6 +142,7 @@ namespace Sokoban.Core
 
         public static bool PaintRectangle(LevelDefinition draft, GridPos from, GridPos to, LevelBrush brush, bool filled)
         {
+            if (draft != null && draft.SchemaVersion > 0) return PaintRectangle(draft, from, to, BrushType(brush), filled, ElementRegistry.BuiltIns());
             if (brush == LevelBrush.Player || !CanEdit(draft) || !draft.IsInside(from) || !draft.IsInside(to)) return false;
             var rect = GridRect.FromPoints(from, to);
             var cells = new List<GridPos>();
@@ -131,6 +154,7 @@ namespace Sokoban.Core
 
         public static bool FloodFill(LevelDefinition draft, GridPos start, LevelBrush brush)
         {
+            if (draft != null && draft.SchemaVersion > 0) return FloodFill(draft, start, BrushType(brush), ElementRegistry.BuiltIns());
             if (brush == LevelBrush.Player || !CanEdit(draft) || !draft.IsInside(start)) return false;
             var cells = new List<GridPos>();
             var pending = new Queue<GridPos>();
@@ -150,8 +174,9 @@ namespace Sokoban.Core
             return ApplyCells(draft, cells, brush);
         }
 
-        public static bool Resize(LevelDefinition draft, int width, int height)
+        public static bool Resize(LevelDefinition draft, int width, int height, ElementRegistry registry = null)
         {
+            if (draft != null && draft.SchemaVersion > 0) return ResizeElements(draft, width, height, registry ?? ElementRegistry.BuiltIns());
             if (draft == null) throw new ArgumentNullException(nameof(draft));
             CheckSize(width, height);
             if (draft.Width == width && draft.Height == height && draft.Cells != null && draft.Cells.Length == width * height) return false;
@@ -167,20 +192,21 @@ namespace Sokoban.Core
             return true;
         }
 
-        public static LevelRegion ReadRegion(LevelDefinition draft, GridRect source)
+        public static LevelRegion ReadRegion(LevelDefinition draft, GridRect source, ElementRegistry registry = null)
         {
             if (!CanEdit(draft) || !source.IsInside(draft)) throw new ArgumentOutOfRangeException(nameof(source), "选区必须完整位于地图内。");
-            return new LevelRegion(draft, source);
+            return new LevelRegion(draft, source, registry);
         }
 
-        public static bool TryMoveRegion(LevelDefinition draft, GridRect source, GridPos destination, out string error)
-            => TransferRegion(draft, source, destination, false, out error);
+        public static bool TryMoveRegion(LevelDefinition draft, GridRect source, GridPos destination, out string error, ElementRegistry registry = null)
+            => draft != null && draft.SchemaVersion > 0 ? TransferElements(draft, source, destination, false, out error, registry ?? ElementRegistry.BuiltIns()) : TransferRegion(draft, source, destination, false, out error);
 
-        public static bool TryCopyRegion(LevelDefinition draft, GridRect source, GridPos destination, out string error)
-            => TransferRegion(draft, source, destination, true, out error);
+        public static bool TryCopyRegion(LevelDefinition draft, GridRect source, GridPos destination, out string error, ElementRegistry registry = null)
+            => draft != null && draft.SchemaVersion > 0 ? TransferElements(draft, source, destination, true, out error, registry ?? ElementRegistry.BuiltIns()) : TransferRegion(draft, source, destination, true, out error);
 
-        public static bool TryPasteRegion(LevelDefinition draft, LevelRegion snapshot, GridPos destination, out string error)
+        public static bool TryPasteRegion(LevelDefinition draft, LevelRegion snapshot, GridPos destination, out string error, ElementRegistry registry = null)
         {
+            if (draft != null && (draft.SchemaVersion > 0 || snapshot?.IsModern == true)) return PasteElements(draft, snapshot, destination, true, out error, registry ?? snapshot?.Registry ?? ElementRegistry.BuiltIns());
             error = "";
             if (!CanEdit(draft) || snapshot == null) { error = "没有可粘贴的选区。"; return false; }
             var target = new GridRect(destination.X, destination.Y, snapshot.Width, snapshot.Height);
@@ -196,6 +222,7 @@ namespace Sokoban.Core
 
         public static bool TryMoveActor(LevelDefinition draft, GridPos from, GridPos to, out string error)
         {
+            if (draft != null && draft.SchemaVersion > 0) return MoveLegacyActor(draft, from, to, out error);
             error = "";
             if (!CanEdit(draft) || !draft.IsInside(from) || !draft.IsInside(to))
             { error = "对象只能移动到地图内。"; return false; }
@@ -305,6 +332,7 @@ namespace Sokoban.Core
         public static bool LayoutEquals(LevelDefinition a, LevelDefinition b)
         {
             if (ReferenceEquals(a, b)) return true;
+            if (a != null && b != null && (a.SchemaVersion > 0 || b.SchemaVersion > 0)) return ElementLayoutsEqual(a, b);
             if (a == null || b == null || a.Width != b.Width || a.Height != b.Height || a.HasPlayer != b.HasPlayer) return false;
             if (a.HasPlayer && a.PlayerStart != b.PlayerStart) return false;
             if (!SameTerrain(a.Cells, b.Cells)) return false;
@@ -350,6 +378,7 @@ namespace Sokoban.Core
 
         private static void CommitLayout(LevelDefinition target, LevelDefinition source)
         {
+            target.SchemaVersion = source.SchemaVersion; target.TerrainTypeIds = source.TerrainTypeIds; target.Elements = source.Elements;
             target.Width = source.Width; target.Height = source.Height; target.Cells = source.Cells;
             target.Goals = source.Goals; target.Boxes = source.Boxes;
             target.HasPlayer = source.HasPlayer; target.PlayerStart = source.PlayerStart;

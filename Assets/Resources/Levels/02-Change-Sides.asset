@@ -14,8 +14,72 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Data:
     Id: level-02
-    Name: "绕到背后"
-    Description: "箱子只能推动。绕到箱子另一侧，改变推动的方向。"
+    Name: "\u7ED5\u5230\u80CC\u540E"
+    Description: "\u7BB1\u5B50\u53EA\u80FD\u63A8\u52A8\u3002\u7ED5\u5230\u7BB1\u5B50\u53E6\u4E00\u4FA7\uFF0C\u6539\u53D8\u63A8\u52A8\u7684\u65B9\u5411\u3002"
+    LayoutVersion: 0
+    SchemaVersion: 1
+    TerrainTypeIds:
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    Elements:
+    - Id: legacy-player
+      TypeId: player
+      Position:
+        X: 1
+        Y: 2
+      Overrides: []
+    - Id: legacy-goal-4-4-0
+      TypeId: goal
+      Position:
+        X: 4
+        Y: 4
+      Overrides: []
+    - Id: legacy-box-3-2-0
+      TypeId: box
+      Position:
+        X: 3
+        Y: 2
+      Overrides: []
     Width: 7
     Height: 6
     Cells: 010000000100000001000000010000000100000001000000010000000100000000000000000000000000000000000000000000000100000001000000000000000000000000000000000000000000000001000000010000000000000000000000000000000000000000000000010000000100000000000000000000000000000000000000000000000100000001000000010000000100000001000000010000000100000001000000
@@ -30,3 +94,4 @@ MonoBehaviour:
     - X: 3
       Y: 2
   VerifiedSolution: RRDRUU
+  VerifiedGameplaySignature: 7d821b7df824525f70476a4d1db73a7c40436228feb7d1958f1068572d21a0d0

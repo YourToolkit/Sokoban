@@ -339,7 +339,10 @@ namespace Sokoban.Tests
             app.Workshop.SetDocument(invalid); app.Workshop.Open();
             app.Workshop.InputEnabled = false;
             Assert.That(app.Workshop.StartPlaytest(), Is.False);
-            app.GetComponentsInChildren<UiList>().Single(list => list.Items.Count > 0).Items[0]
+            Assert.That(app.Workshop.ModalView, Is.Not.Null);
+            var issueList = app.Workshop.ModalView.Get<UiList>("Issue list");
+            Assert.That(issueList.Items.Count, Is.GreaterThan(0));
+            issueList.Items[0]
                 .Get<Button>("Validation issue").onClick.Invoke();
             Assert.That(app.Board.CaptureView().Center, Is.EqualTo(new Vector2(2.5f, 2.5f)));
             Assert.That(app.Board.CaptureView().Zoom, Is.GreaterThanOrEqualTo(1.6f));

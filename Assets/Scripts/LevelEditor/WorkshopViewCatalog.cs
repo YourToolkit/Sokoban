@@ -9,6 +9,8 @@ namespace Sokoban.Runtime
         [Serializable] public struct Dialog { public string Key; public UiView Prefab; }
         public UiView Main;
         public UiView Entry;
+        public UiView ObjectProperties;
+        [HideInInspector] public int ElementAuthoringLayoutVersion;
         public Dialog[] Dialogs;
     }
 }

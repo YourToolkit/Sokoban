@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Main: {fileID: 1685940280287693767, guid: 2f01e12fba3536c43b8d1e1d6edcd458, type: 3}
   Entry: {fileID: 5714291361829303839, guid: 38b8615c440957d4fad15e858c16ae25, type: 3}
+  ObjectProperties: {fileID: 4744916713739979264, guid: 4a54ca38206df4f429eefeb62e805a6c, type: 3}
+  ElementAuthoringLayoutVersion: 2
   Dialogs:
   - Key: Workshop menu dialog
     Prefab: {fileID: 2938825044896689095, guid: f40cde063e7553e49a643ff823f96afe, type: 3}

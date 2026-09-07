@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using Sokoban.Content;
 using Sokoban.Core;
@@ -31,6 +32,9 @@ namespace Sokoban.EditorTools
             public string Stage, Folder, ResourcesPath, CatalogPath, SourcePath, SourceJson;
             public string[] OriginalCatalogPaths;
             public string SavedPath, SavedJson, SavedBytes, OriginalProduct, SmokeProduct, OriginalProgressPath, SmokeProgressPath;
+            public string MechanicsSourceJson, MechanicsDraftJson, MechanicsSavedPath, MechanicsSavedJson, MechanicsSavedBytes;
+            public string MechanicsPlateId, MechanicsDoorId, MechanicsSecondDoorId;
+            public bool MechanicsMoved;
             public string OriginalStartScene, Report, Error;
             public bool OriginalOptionsEnabled;
             public int OriginalOptions, Round;
@@ -54,12 +58,15 @@ namespace Sokoban.EditorTools
                 var resources = AssetDatabase.LoadAssetAtPath<GameResources>(ProjectSetup.ResourcesPath);
                 Require(resources != null && resources.Catalog != null && resources.Catalog.Levels.Count > 0, "Prepare the project resources first.");
                 var source = resources.Catalog.Levels[0];
-                Require(source != null && LevelValidator.Validate(source.Data).Count == 0, "The source room must be valid.");
+                Require(source != null && LevelValidator.Validate(source.Data, resources.Elements?.Snapshot() ?? ElementRegistry.BuiltIns()).Count == 0, "The source room must be valid.");
+                var mechanicsSource = AssetDatabase.LoadAssetAtPath<LevelAsset>(MechanicsContentSetup.SamplePath);
+                Require(mechanicsSource != null, "Prepare the sliding-box and pressure-door example first.");
                 string token = Guid.NewGuid().ToString("N");
                 state = new State
                 {
                     Folder = "Assets/__RuntimeAuthoringSmoke_" + token,
                     SourcePath = AssetDatabase.GetAssetPath(source), SourceJson = JsonUtility.ToJson(source.Data),
+                    MechanicsSourceJson = JsonUtility.ToJson(mechanicsSource),
                     OriginalCatalogPaths = CatalogPaths(resources.Catalog),
                     OriginalProduct = PlayerSettings.productName, SmokeProduct = "SokobanAuthoringSmoke-" + token,
                     OriginalProgressPath = Path.GetFullPath(Application.persistentDataPath),
@@ -77,6 +84,7 @@ namespace Sokoban.EditorTools
                 var isolatedResources = ScriptableObject.CreateInstance<GameResources>();
                 isolatedResources.Config = resources.Config;
                 isolatedResources.Visuals = resources.Visuals;
+                isolatedResources.Elements = resources.Elements;
                 isolatedResources.Catalog = catalog;
                 AssetDatabase.CreateAsset(isolatedResources, state.ResourcesPath);
                 AssetDatabase.SaveAssets();
@@ -115,6 +123,7 @@ namespace Sokoban.EditorTools
                         break;
                     case "EnterPlay": EnterPlay(); break;
                     case "Author": Author(); break;
+                    case "MechanicsPlay": FinishMechanicsPlay(); break;
                     case "Reload": Reload(); break;
                     default: throw new InvalidOperationException("Unknown smoke stage: " + state.Stage);
                 }
@@ -154,7 +163,7 @@ namespace Sokoban.EditorTools
             {
                 var cell = new GridPos(x, y);
                 if (definition.CellAt(cell) == CellType.Floor && cell != definition.PlayerStart && !definition.IsGoal(cell) && Array.IndexOf(definition.Boxes, cell) < 0)
-                { definition.Cells[y * definition.Width + x] = CellType.Wall; changed = true; }
+                { changed = LevelAuthoring.Paint(definition, cell, "wall", Registry); }
             }
             Require(changed, "The source room has no free terrain cell for a layout-edit check.");
             workshop.SetDocument(definition, created);
@@ -171,8 +180,87 @@ namespace Sokoban.EditorTools
             workshop.RequestReturn();
             Require(app.IsPlaytest && app.Session.Definition.Id == JsonUtility.FromJson<LevelDefinition>(state.SourceJson).Id,
                 "The original game session was not restored after leaving authoring.");
-            SetStage("Reload");
-            PlaytestRequest.RequestExit();
+            BeginMechanicsAuthoring(app);
+        }
+
+        private static ElementRegistry Registry => AssetDatabase.LoadAssetAtPath<GameResources>(ProjectSetup.ResourcesPath)?.Elements?.Snapshot() ?? ElementRegistry.BuiltIns();
+
+        private static void BeginMechanicsAuthoring(GameController app)
+        {
+            var sample = AssetDatabase.LoadAssetAtPath<LevelAsset>(MechanicsContentSetup.SamplePath);
+            Require(sample != null && JsonUtility.ToJson(sample) == state.MechanicsSourceJson, "The mechanics example changed before authoring.");
+            app.OpenWorkshop();
+            var workshop = app.Workshop;
+            workshop.InputEnabled = false;
+            workshop.SetDocument(sample.ToDefinition());
+            var plate = workshop.Draft.Elements.Single(element => element.TypeId == "pressure-plate");
+            var door = workshop.Draft.Elements.Single(element => element.TypeId == "door");
+            state.MechanicsPlateId = plate.Id; state.MechanicsDoorId = door.Id;
+            var extraDoorCell = new GridPos(6, 1);
+            workshop.SetElement("door"); workshop.BeginGesture(extraDoorCell); workshop.EndGesture(extraDoorCell);
+            var second = workshop.Draft.Elements.Single(element => element.TypeId == "door" && element.Position == extraDoorCell);
+            state.MechanicsSecondDoorId = second.Id;
+            string beforeReferences = JsonUtility.ToJson(workshop.Draft);
+            Require(workshop.SelectElementInstance(plate.Id), "The pressure plate under the sliding box was not selectable.");
+            Require(workshop.BeginReferencePicking("targetDoors"), "The shared schema did not expose the door references.");
+            Require(workshop.PickReferenceAt(extraDoorCell), "Canvas door picking rejected a valid second door.");
+            Require(JsonUtility.ToJson(workshop.Draft) == beforeReferences, "Door-picking preview mutated the document.");
+            Require(workshop.CommitReferencePicking(), "Door references could not be committed.");
+            AssertMechanicsReferences(workshop.Draft);
+            workshop.UndoEdit();
+            Require(JsonUtility.ToJson(workshop.Draft) == beforeReferences, "One undo did not restore the complete pre-link document.");
+            workshop.RedoEdit(); AssertMechanicsReferences(workshop.Draft);
+            state.MechanicsDraftJson = JsonUtility.ToJson(workshop.Draft);
+            Require(workshop.Source == null && workshop.IsDirty, "The mechanics test must run from an unsaved detached draft.");
+            Require(workshop.StartPlaytest(), "The unsaved mechanics draft could not enter playtest.");
+            Require(app.IsPlaytest, "Mechanics draft started as a formal game.");
+            state.MechanicsMoved = false;
+            SetStage("MechanicsPlay");
+        }
+
+        private static void FinishMechanicsPlay()
+        {
+            Require(EditorApplication.isPlaying, "The mechanics playtest stopped early.");
+            var app = UnityEngine.Object.FindObjectOfType<GameController>();
+            Require(app != null && app.IsPlaytest && app.Session != null, "The mechanics session disappeared.");
+            if (app.CurrentScreen == GameController.ScreenState.Paused) app.Resume();
+            if (app.Board.IsAnimating) return;
+            if (!state.MechanicsMoved)
+            {
+                app.Move(Direction.Right);
+                state.MechanicsMoved = true; Persist(); return;
+            }
+            Require(app.Session.IsWon && app.CurrentScreen == GameController.ScreenState.Complete, "The slide/pressure-door example did not finish after a real move.");
+            app.OpenWorkshop();
+            var workshop = app.Workshop;
+            Require(app.CurrentScreen == GameController.ScreenState.Workshop && JsonUtility.ToJson(workshop.Draft) == state.MechanicsDraftJson,
+                "Mechanics playtest return lost instance IDs, parameters or the detached initial layout.");
+            AssertMechanicsReferences(workshop.Draft);
+            Require(workshop.Save(LevelSaveIntent.SaveAndAddToCatalog), "Saving the mechanics draft during Play failed.");
+            Require(workshop.Source != null && workshop.Source.Data.LayoutVersion == 0, "New mechanics asset did not receive an independent version-zero identity.");
+            AssertMechanicsReferences(workshop.Source.Data);
+            state.MechanicsSavedPath = AssetDatabase.GetAssetPath(workshop.Source);
+            state.MechanicsSavedJson = JsonUtility.ToJson(workshop.Source.Data);
+            state.MechanicsSavedBytes = Convert.ToBase64String(File.ReadAllBytes(state.MechanicsSavedPath));
+            Require(JsonUtility.ToJson(AssetDatabase.LoadAssetAtPath<LevelAsset>(MechanicsContentSetup.SamplePath)) == state.MechanicsSourceJson,
+                "The mechanics source asset was changed by draft editing or playtest.");
+            workshop.RequestReturn();
+            Require(app.IsPlaytest && app.Session.Definition.Id == JsonUtility.FromJson<LevelDefinition>(state.SourceJson).Id,
+                "The original session was not restored after the mechanics workflow.");
+            SetStage("Reload"); PlaytestRequest.RequestExit();
+        }
+
+        private static void AssertMechanicsReferences(LevelDefinition definition)
+        {
+            var plate = definition.Elements.Single(element => element.Id == state.MechanicsPlateId);
+            var targets = Registry.GetValue(plate, "targetDoors")?.StringValues;
+            Require(targets != null && targets.Length == 2 && targets.Contains(state.MechanicsDoorId) && targets.Contains(state.MechanicsSecondDoorId),
+                "The complete multi-door reference parameter was not preserved.");
+            Require(definition.Elements.Any(element => element.Id == state.MechanicsDoorId && element.TypeId == "door") &&
+                definition.Elements.Any(element => element.Id == state.MechanicsSecondDoorId && element.TypeId == "door" && element.Position == new GridPos(6, 1)),
+                "The stable referenced door instances were not preserved.");
+            Require(definition.Elements.Single(element => element.TypeId == "sliding-box").Position == new GridPos(2, 2),
+                "The saved draft used the played box position instead of its initial layout.");
         }
 
         private static void Reload()
@@ -186,17 +274,28 @@ namespace Sokoban.EditorTools
             var catalog = AssetDatabase.LoadAssetAtPath<LevelCatalog>(state.CatalogPath);
             Require(level != null && JsonUtility.ToJson(level.Data) == state.SavedJson, "Reloaded .asset does not match the runtime save.");
             Require(catalog != null && catalog.Levels.Contains(level), "The saved catalog reference did not survive leaving Play mode.");
+            Require(File.Exists(state.MechanicsSavedPath) && Convert.ToBase64String(File.ReadAllBytes(state.MechanicsSavedPath)) == state.MechanicsSavedBytes,
+                "The mechanics asset bytes changed on leaving Play mode.");
+            AssetDatabase.ImportAsset(state.MechanicsSavedPath, ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+            var mechanics = AssetDatabase.LoadAssetAtPath<LevelAsset>(state.MechanicsSavedPath);
+            Require(mechanics != null && JsonUtility.ToJson(mechanics.Data) == state.MechanicsSavedJson && catalog.Levels.Contains(mechanics),
+                "Reload did not preserve the mechanics document or catalog reference.");
+            AssertMechanicsReferences(mechanics.Data);
             LevelEditorWindow.OpenLevel(level);
             var window = EditorWindow.GetWindow<LevelEditorWindow>();
             var opened = typeof(LevelEditorWindow).GetField("source", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(window) as LevelAsset;
             Require(opened == level && !window.hasUnsavedChanges, "The original EditorWindow could not open the runtime-authored asset cleanly.");
+            LevelEditorWindow.OpenLevel(mechanics);
+            opened = typeof(LevelEditorWindow).GetField("source", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(window) as LevelAsset;
+            Require(opened == mechanics && !window.hasUnsavedChanges, "The original EditorWindow could not open the mechanics asset cleanly.");
             window.Close();
             Require(JsonUtility.ToJson(AssetDatabase.LoadAssetAtPath<LevelAsset>(state.SourcePath).Data) == state.SourceJson, "The original source asset was mutated.");
+            Require(JsonUtility.ToJson(AssetDatabase.LoadAssetAtPath<LevelAsset>(MechanicsContentSetup.SamplePath)) == state.MechanicsSourceJson, "The original mechanics example was mutated.");
             var originalResources = AssetDatabase.LoadAssetAtPath<GameResources>(ProjectSetup.ResourcesPath);
             Require(string.Join("\n", CatalogPaths(originalResources.Catalog)) == string.Join("\n", state.OriginalCatalogPaths), "The production catalog was mutated.");
             AssertProgressUnchanged();
             Append("PASS " + (state.Round == 0 ? "default-domain-reload" : "disabled-domain-reload") +
-                ": save, version increment, in-session playtest return, exit Play, disk reload, catalog reference and legacy EditorWindow.");
+                ": save, version increment, in-session playtest return, exit Play, disk reload, catalog reference and legacy EditorWindow; unsaved sliding/pressure-door draft, multi-door picking, complete undo/redo, real slide win, return, stable-ID/parameter save and reload.");
             state.Round++;
             if (state.Round < 2) SetStage("EnterPlay");
             else Finish(true);

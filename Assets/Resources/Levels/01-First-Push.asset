@@ -14,8 +14,65 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Data:
     Id: level-01
-    Name: "初识推箱"
-    Description: "站到箱子后方，将它推到目标点。每次成功移动计为一步。"
+    Name: "\u521D\u8BC6\u63A8\u7BB1"
+    Description: "\u7AD9\u5230\u7BB1\u5B50\u540E\u65B9\uFF0C\u5C06\u5B83\u63A8\u5230\u76EE\u6807\u70B9\u3002\u6BCF\u6B21\u6210\u529F\u79FB\u52A8\u8BA1\u4E3A\u4E00\u6B65\u3002"
+    LayoutVersion: 0
+    SchemaVersion: 1
+    TerrainTypeIds:
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    Elements:
+    - Id: legacy-player
+      TypeId: player
+      Position:
+        X: 2
+        Y: 2
+      Overrides: []
+    - Id: legacy-goal-5-2-0
+      TypeId: goal
+      Position:
+        X: 5
+        Y: 2
+      Overrides: []
+    - Id: legacy-box-3-2-0
+      TypeId: box
+      Position:
+        X: 3
+        Y: 2
+      Overrides: []
     Width: 7
     Height: 5
     Cells: 0100000001000000010000000100000001000000010000000100000001000000000000000000000000000000000000000000000001000000010000000000000000000000000000000000000000000000010000000100000000000000000000000000000000000000000000000100000001000000010000000100000001000000010000000100000001000000
@@ -30,3 +87,4 @@ MonoBehaviour:
     - X: 3
       Y: 2
   VerifiedSolution: 
+  VerifiedGameplaySignature: 

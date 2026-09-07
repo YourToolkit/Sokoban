@@ -19,6 +19,7 @@ namespace Sokoban.EditorTools
             Field("terrainMap", "地形 Tilemap"); Field("goalMap", "目标 Tilemap");
             Field("player", "玩家节点"); Field("boxPrefab", "箱子 Prefab");
             Field("visuals", "素材配置"); Field("pixelsPerCell", "每格原始像素");
+            Field("elementCatalog", "元素目录");
             Field("backgroundColor", "棋盘背景色");
             serializedObject.ApplyModifiedProperties();
             var board=(BoardView)target;
@@ -60,6 +61,7 @@ namespace Sokoban.EditorTools
                 if(state==PlayModeStateChange.EnteredEditMode) Queue();
             };
             EditorApplication.projectChanged += Queue;
+            ElementCatalog.Changed += Queue;
             Undo.undoRedoPerformed += Queue;
             Undo.postprocessModifications += modifications=> { Queue(); return modifications; };
             EditorApplication.delayCall += Queue;
@@ -84,6 +86,7 @@ namespace Sokoban.EditorTools
             Clear();
             if(!source || !level || level.Data==null || EditorApplication.isPlayingOrWillChangePlaymode || !source.gameObject.scene.IsValid()) return;
             preview=Object.Instantiate(source); preview.name="临时关卡预览（不保存）";
+            preview.ConfigureElements(source.Elements != null ? source.Elements : source.GetComponentInParent<GameController>()?.ResourcesConfig?.Elements);
             SceneManager.MoveGameObjectToScene(preview.gameObject,source.gameObject.scene);
             foreach(var item in preview.GetComponentsInChildren<Transform>(true)) item.gameObject.hideFlags=HideFlags.HideAndDontSave;
             preview.PrepareScenePreview(level.ToDefinition());

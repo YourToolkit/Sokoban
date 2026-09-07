@@ -23,7 +23,9 @@ namespace Sokoban.EditorTools
                 EditorGUILayout.LabelField("关卡说明", level.Data.Description ?? "", EditorStyles.wordWrappedLabel);
                 EditorGUILayout.LabelField("固定 ID", level.Data.Id ?? "");
                 EditorGUILayout.LabelField("布局版本", level.Data.LayoutVersion.ToString());
-                var issues = LevelValidator.Validate(level.Data);
+                EditorGUILayout.LabelField("数据格式版本", level.Data.SchemaVersion.ToString());
+                var registry = AssetDatabase.LoadAssetAtPath<GameResources>(ProjectSetup.ResourcesPath)?.Elements?.Snapshot() ?? ElementRegistry.BuiltIns();
+                var issues = LevelValidator.Validate(level.Data, registry);
                 if (issues.Count == 0)
                     EditorGUILayout.HelpBox("结构检查通过，请试玩确认关卡能够通关。", MessageType.Info);
                 else

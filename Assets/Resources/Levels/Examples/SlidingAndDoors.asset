@@ -1,0 +1,121 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a39f52ceeb9916741ba39b2ee3306fe8, type: 3}
+  m_Name: SlidingAndDoors
+  m_EditorClassIdentifier: 
+  Data:
+    Id: example-sliding-and-doors
+    Name: "\u6ED1\u884C\u4E0E\u95E8"
+    Description: "\u5411\u53F3\u63A8\u52A8\u6ED1\u884C\u7BB1\u3002\u73A9\u5BB6\u63A5\u66FF\u7BB1\u5B50\u538B\u4F4F\u538B\u529B\u677F\uFF0C\u95E8\u4FDD\u6301\u5F00\u542F\uFF1B\u7BB1\u5B50\u4F1A\u4E00\u76F4\u6ED1\u5230\u969C\u788D\u524D\u3002\u9009\u4E2D\u538B\u529B\u677F\u53EF\u67E5\u770B\u5B83\u5173\u8054\u7684\u95E8\u3002"
+    LayoutVersion: 0
+    SchemaVersion: 1
+    TerrainTypeIds:
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - floor
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    - wall
+    Elements:
+    - Id: legacy-player
+      TypeId: player
+      Position:
+        X: 1
+        Y: 2
+      Overrides: []
+    - Id: legacy-goal-7-2-0
+      TypeId: goal
+      Position:
+        X: 7
+        Y: 2
+      Overrides: []
+    - Id: legacy-box-2-2-0
+      TypeId: sliding-box
+      Position:
+        X: 2
+        Y: 2
+      Overrides: []
+    - Id: example-door
+      TypeId: door
+      Position:
+        X: 4
+        Y: 2
+      Overrides: []
+    - Id: example-pressure-plate
+      TypeId: pressure-plate
+      Position:
+        X: 2
+        Y: 2
+      Overrides:
+      - Key: targetDoors
+        Kind: 6
+        BoolValue: 0
+        IntValue: 0
+        FloatValue: 0
+        StringValue: 
+        StringValues:
+        - example-door
+        RawValue: 
+    Width: 9
+    Height: 5
+    Cells: 010000000100000001000000010000000100000001000000010000000100000001000000010000000000000000000000000000000000000000000000000000000000000001000000010000000000000000000000000000000000000000000000000000000000000001000000010000000000000000000000000000000000000000000000000000000000000001000000010000000100000001000000010000000100000001000000010000000100000001000000
+    Goals:
+    - X: 7
+      Y: 2
+    HasPlayer: 1
+    PlayerStart:
+      X: 1
+      Y: 2
+    Boxes:
+    - X: 2
+      Y: 2
+  VerifiedSolution: R
+  VerifiedGameplaySignature: cecc469ca2229e3ab24415290e956bbf5750b18c87f64be81ea18715f9f11a10

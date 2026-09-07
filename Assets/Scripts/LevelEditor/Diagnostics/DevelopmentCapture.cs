@@ -78,7 +78,7 @@ namespace Sokoban.Runtime
             yield return Capture("03c-editor-menu");
             Click(app, "Close menu");
 
-            var selectHint = app.GetComponentsInChildren<WorkshopPointerHint>().Single(hint => hint.name == "Tool Select");
+            var selectHint = workshop.View.Get<Button>("Tool Select").GetComponent<WorkshopPointerHint>();
             selectHint.OnPointerEnter(null);
             yield return Capture("03a-editor-tool-hint");
             selectHint.OnPointerExit(null);
@@ -161,6 +161,37 @@ namespace Sokoban.Runtime
             checks.Add("Shape and paste previews were rendered from detached drafts.");
             checks.Add("Playtest return preserved draft, redo history, selected tool, zoom and pan.");
             checks.Add("All progress access used the output directory's isolated-progress store.");
+            var mechanics = Resources.Load<LevelAsset>("Levels/Examples/SlidingAndDoors");
+            if (mechanics == null) { Finish("The sliding-box and pressure-door example asset is missing."); yield break; }
+            string mechanicsBefore = JsonUtility.ToJson(mechanics);
+            app.OpenWorkshop();
+            workshop = app.Workshop; workshop.InputEnabled = false;
+            workshop.SetDocument(mechanics.ToDefinition(), mechanics); workshop.Open();
+            workshop.SetElement("sliding-box");
+            yield return Capture("11-mechanics-editor");
+            var plate = workshop.Draft.Elements.FirstOrDefault(element => element.TypeId == "pressure-plate");
+            if (plate == null || !workshop.SelectElementInstance(plate.Id)) { Finish("The pressure plate could not be selected."); yield break; }
+            workshop.SetTool(WorkshopTool.Select);
+            workshop.OpenObjectProperties();
+            app.Board.Pan(new Vector2(app.Board.ScreenRect.width * .12f, 0));
+            yield return Capture("12-mechanics-properties");
+            if (!app.GetComponentsInChildren<TMP_Text>().Any(label => label.text == "关联门"))
+            { Finish("The shared property schema did not render the door reference control."); yield break; }
+            var mechanicsDraft = workshop.Draft;
+            if (!workshop.StartPlaytest()) { Finish("The mechanics example could not enter playtest."); yield break; }
+            yield return Capture("13-mechanics-play");
+            app.Move(Direction.Right);
+            animationDeadline = Time.realtimeSinceStartup + 5;
+            while (app.Board.IsAnimating && Time.realtimeSinceStartup < animationDeadline) yield return null;
+            if (app.Board.IsAnimating || !app.Session.IsWon || !app.IsPlaytest)
+            { Finish("The sliding box and sustained pressure door did not complete the example."); yield break; }
+            app.OpenWorkshop();
+            if (!LevelAuthoring.LayoutEquals(mechanicsDraft, workshop.Draft) || JsonUtility.ToJson(mechanics) != mechanicsBefore)
+            { Finish("The mechanics playtest changed the draft or source asset."); yield break; }
+            byte[] mechanicsProgressAfter = File.Exists(progressPath) ? File.ReadAllBytes(progressPath) : null;
+            if ((progressBefore == null) != (mechanicsProgressAfter == null) || progressBefore != null && !progressBefore.SequenceEqual(mechanicsProgressAfter))
+            { Finish("The mechanics playtest wrote formal progress."); yield break; }
+            checks.Add("Mechanics example: catalog palette, layered pressure-plate selection, schema properties, sustained door/slide playtest and return; source and formal progress unchanged.");
             Finish(errors.Count > 0 ? "Runtime logged errors." : overflows.Count > 0 ? "Visible UI overflow detected." : null);
         }
 
@@ -196,22 +227,36 @@ namespace Sokoban.Runtime
             foreach (var label in FindObjectsOfType<TMP_Text>())
             {
                 if (!label.gameObject.activeInHierarchy) continue;
+                if (!VisibleRect(label.rectTransform, out _)) continue;
                 label.ForceMeshUpdate();
                 if (label.isTextOverflowing && label.GetComponentInParent<TMP_InputField>() == null)
                     overflows.Add(name + ": text overflow: " + label.name + " = " + label.text);
             }
-            var corners = new Vector3[4];
             foreach (var button in FindObjectsOfType<Button>())
             {
                 var rect = (RectTransform)button.transform;
-                rect.GetWorldCorners(corners);
-                foreach (var corner in corners)
-                    if (corner.x < -1 || corner.y < -1 || corner.x > Screen.width + 1 || corner.y > Screen.height + 1)
-                    { overflows.Add(name + ": button outside viewport: " + button.name); break; }
+                if (!VisibleRect(rect, out var visibleRect)) continue;
+                if (visibleRect.xMin < -1 || visibleRect.yMin < -1 || visibleRect.xMax > Screen.width + 1 || visibleRect.yMax > Screen.height + 1)
+                    overflows.Add(name + ": button outside viewport: " + button.name);
             }
             RenderFrame(Path.Combine(output, name + ".png"));
             checks.Add(name + ".png: actual Camera and Canvas rendered at " + Screen.width + " x " + Screen.height);
             yield return null;
+        }
+
+        private static bool VisibleRect(RectTransform transform, out Rect visible)
+        {
+            var corners = new Vector3[4]; transform.GetWorldCorners(corners);
+            visible = Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+            foreach (var mask in transform.GetComponentsInParent<RectMask2D>())
+            {
+                if (!mask.isActiveAndEnabled) continue;
+                mask.rectTransform.GetWorldCorners(corners);
+                var clipped = Rect.MinMaxRect(Mathf.Max(visible.xMin, corners[0].x), Mathf.Max(visible.yMin, corners[0].y), Mathf.Min(visible.xMax, corners[2].x), Mathf.Min(visible.yMax, corners[2].y));
+                if (clipped.width <= 0 || clipped.height <= 0) return false;
+                visible = clipped;
+            }
+            return visible.width > 0 && visible.height > 0;
         }
 
         private void RenderFrame(string path)
@@ -228,6 +273,8 @@ namespace Sokoban.Runtime
             var iconRects = new List<Rect>();
             foreach (var icon in canvas.GetComponentsInChildren<WorkshopPointerHint>())
             {
+                // The brightness assertion describes the monochrome drawing-tool symbols, not colored element artwork.
+                if (icon.GetComponentInParent<UiList>() != null) continue;
                 if (!icon.GetComponentInParent<Button>().interactable) continue;
                 var corners = new Vector3[4];
                 icon.GetComponent<UiButtonVisual>().Icon.rectTransform.GetWorldCorners(corners);

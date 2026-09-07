@@ -378,6 +378,7 @@ MonoBehaviour:
   boxPrefab: {fileID: 3339040612287361677, guid: 6d30c2e73712b134c815884c7bc5cee6, type: 3}
   pixelsPerCell: 32
   backgroundColor: {r: 0.13725491, g: 0.15294118, b: 0.20784314, a: 1}
+  elementCatalog: {fileID: 11400000, guid: 6af9aaa5ba664f74196a6634c18291ae, type: 2}
 --- !u!1 &9079317635394132362
 GameObject:
   m_ObjectHideFlags: 0

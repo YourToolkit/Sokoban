@@ -28,6 +28,9 @@ namespace Sokoban.Core
         public string Name = "未命名关卡";
         public string Description = "将所有箱子推到目标点。";
         public int LayoutVersion;
+        public int SchemaVersion;
+        public string[] TerrainTypeIds = Array.Empty<string>();
+        public ElementInstance[] Elements = Array.Empty<ElementInstance>();
         public int Width = 8;
         public int Height = 8;
         public CellType[] Cells = new CellType[64];
@@ -43,7 +46,9 @@ namespace Sokoban.Core
 
         public LevelDefinition DeepClone() => new LevelDefinition
         {
-            Id = Id, Name = Name, Description = Description, LayoutVersion = LayoutVersion, Width = Width, Height = Height,
+            Id = Id, Name = Name, Description = Description, LayoutVersion = LayoutVersion, SchemaVersion = SchemaVersion, Width = Width, Height = Height,
+            TerrainTypeIds = TerrainTypeIds == null ? null : (string[])TerrainTypeIds.Clone(),
+            Elements = Elements == null ? null : Array.ConvertAll(Elements, value => value?.DeepClone()),
             Cells = Cells == null ? null : (CellType[])Cells.Clone(),
             Goals = Goals == null ? null : (GridPos[])Goals.Clone(),
             HasPlayer = HasPlayer, PlayerStart = PlayerStart,
@@ -61,8 +66,9 @@ namespace Sokoban.Core
 
     public static class LevelValidator
     {
-        public static List<ValidationIssue> Validate(LevelDefinition level)
+        public static List<ValidationIssue> Validate(LevelDefinition level, ElementRegistry registry = null)
         {
+            if (level != null && (level.SchemaVersion > 0 || registry != null)) return ElementValidation.Validate(level, registry ?? ElementRegistry.BuiltIns());
             var issues = new List<ValidationIssue>();
             if (level == null) { issues.Add(new ValidationIssue("没有关卡数据。")); return issues; }
             if (string.IsNullOrWhiteSpace(level.Id)) issues.Add(new ValidationIssue("关卡缺少唯一编号。"));

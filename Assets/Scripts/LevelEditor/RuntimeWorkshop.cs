@@ -14,13 +14,14 @@ namespace Sokoban.Runtime
     public enum WorkshopTool { Brush, Line, HollowRectangle, FilledRectangle, Select, Fill, Eraser }
 
     /// <summary>Owns a detached authoring document, gesture transactions and UI. Asset writes use an injected service.</summary>
-    public sealed class RuntimeWorkshop : MonoBehaviour
+    public sealed partial class RuntimeWorkshop : MonoBehaviour
     {
         private enum Gesture { None, Stroke, Shape, Selection, MoveRegion, MoveActor }
         private GameController app;
         private WorkshopViews views;
         private UiView ui;
         public UiView View => ui;
+        public UiView ModalView => modal != null ? modal.GetComponent<UiView>() : null;
         public void HideView() { if (views != null) views.Hide(); }
         private Canvas canvas;
         private BoardView board;
@@ -71,8 +72,9 @@ namespace Sokoban.Runtime
             visible = true;
             modal = null;
             BuildInterface();
+            RefreshElementConfiguration(true);
             board.SetViewport(ui.Get<BoardViewport>("Board viewport"));
-            board.ShowDraft(draft, !view.Valid);
+            board.ShowDraft(draft, !view.Valid, Registry);
             if (view.Valid) board.RestoreView(view);
             RenderDraft();
         }
@@ -80,11 +82,13 @@ namespace Sokoban.Runtime
         public void SetDocument(LevelDefinition definition, LevelAsset asset = null)
         {
             CancelGesture();
-            draft = (definition ?? LevelAuthoring.CreateBlank()).DeepClone();
+            draft = LevelMigration.Snapshot(definition ?? LevelAuthoring.CreateBlank(), Registry);
             saved = draft.DeepClone();
             source = asset;
             undo.Clear(); redo.Clear();
             selection = null; clipboard = null; issueHighlight = null; hoverVisible = false;
+            selectedInstanceId = null;
+            CancelReferencePicking();
             view = default;
             loaded = true;
             status = "左键绘制 · 中键平移 · 滚轮缩放 · Shift 框选";
@@ -93,17 +97,20 @@ namespace Sokoban.Runtime
         public void SetTool(WorkshopTool tool)
         {
             CancelGesture();
+            CancelReferencePicking();
             Tool = tool;
             issueHighlight = null;
             if (tool != WorkshopTool.Select) selection = null;
-            if (Brush == LevelBrush.Player && IsBatchTool(tool)) Brush = LevelBrush.Wall;
+            if (SelectedType?.Role == ElementRole.Player && IsBatchTool(tool)) { Brush = LevelBrush.Wall; selectedTypeId = "wall"; }
             RenderDraft();
         }
 
         public void SetBrush(LevelBrush brush)
         {
             CancelGesture();
+            CancelReferencePicking();
             Brush = brush;
+            selectedTypeId = brush == LevelBrush.Erase ? "floor" : brush.ToString().ToLowerInvariant();
             issueHighlight = null;
             selection = null;
             if (brush == LevelBrush.Player || Tool == WorkshopTool.Eraser) Tool = WorkshopTool.Brush;
@@ -113,22 +120,24 @@ namespace Sokoban.Runtime
         public void BeginGesture(GridPos cell, bool forceSelection = false)
         {
             if (draft == null || !draft.IsInside(cell)) return;
+            if (referenceProperty != null) { PickReferenceAt(cell); return; }
             issueHighlight = null;
             if (pastePending) { CommitPaste(cell); return; }
             CancelGesture();
             gestureStart = lastCell = hoverCell = cell;
             beforeGesture = draft.DeepClone();
+            selectionBeforeGesture = selectedInstanceId;
             previewValid = true;
             if (forceSelection || Tool == WorkshopTool.Select || selection.HasValue && selection.Value.Contains(cell))
             {
                 if (!forceSelection && selection.HasValue && selection.Value.Contains(cell))
                 { gesture = Gesture.MoveRegion; movingSelection = selection; }
-                else if (!forceSelection && HasActor(cell)) gesture = Gesture.MoveActor;
-                else { gesture = Gesture.Selection; selection = new GridRect(cell.X, cell.Y, 1, 1); }
+                else if (!forceSelection && HasActor(cell)) { gesture = Gesture.MoveActor; selectedInstanceId = SelectedInstance != null && SelectedInstance.Position == cell ? selectedInstanceId : ElementAt(cell)?.Id; }
+                else { gesture = Gesture.Selection; selectedInstanceId = null; selection = new GridRect(cell.X, cell.Y, 1, 1); CloseObjectProperties(); }
             }
             else if (Tool == WorkshopTool.Fill)
             {
-                LevelAuthoring.FloodFill(draft, cell, Brush);
+                LevelAuthoring.FloodFill(draft, cell, selectedTypeId, Registry);
                 CommitChange(beforeGesture);
                 beforeGesture = null;
             }
@@ -136,7 +145,7 @@ namespace Sokoban.Runtime
             else
             {
                 gesture = Gesture.Stroke;
-                LevelAuthoring.Paint(draft, cell, Tool == WorkshopTool.Eraser ? LevelBrush.Erase : Brush);
+                PaintCell(draft, cell);
             }
             RenderDraft();
         }
@@ -158,9 +167,9 @@ namespace Sokoban.Runtime
                 }
                 if (draft.IsInside(cell))
                 {
-                    var brush = Tool == WorkshopTool.Eraser ? LevelBrush.Erase : Brush;
-                    if (brush == LevelBrush.Player) LevelAuthoring.Paint(draft, cell, brush);
-                    else LevelAuthoring.PaintLine(draft, lastCell, cell, brush);
+                    if (Tool == WorkshopTool.Eraser) LevelAuthoring.PaintLine(draft, lastCell, cell, LevelBrush.Erase);
+                    else if (SelectedType?.Role == ElementRole.Player) LevelAuthoring.Paint(draft, cell, selectedTypeId, Registry);
+                    else LevelAuthoring.PaintLine(draft, lastCell, cell, selectedTypeId, Registry);
                     lastCell = cell;
                 }
                 RenderDraft();
@@ -177,16 +186,16 @@ namespace Sokoban.Runtime
             }
             else if (gesture == Gesture.Shape && previewValid)
             {
-                if (Tool == WorkshopTool.Line) LevelAuthoring.PaintLine(preview, gestureStart, cell, Brush);
-                else LevelAuthoring.PaintRectangle(preview, gestureStart, cell, Brush, Tool == WorkshopTool.FilledRectangle);
+                if (Tool == WorkshopTool.Line) LevelAuthoring.PaintLine(preview, gestureStart, cell, selectedTypeId, Registry);
+                else LevelAuthoring.PaintRectangle(preview, gestureStart, cell, selectedTypeId, Tool == WorkshopTool.FilledRectangle, Registry);
             }
             else if (gesture == Gesture.MoveActor)
-                previewValid = LevelAuthoring.TryMoveActor(preview, gestureStart, cell, out error);
+                previewValid = LevelAuthoring.TryMoveElement(preview, selectedInstanceId, cell, Registry, out error);
             else if (gesture == Gesture.MoveRegion && movingSelection.HasValue)
             {
                 var area = movingSelection.Value;
                 var destination = new GridPos(area.MinX + cell.X - gestureStart.X, area.MinY + cell.Y - gestureStart.Y);
-                previewValid = LevelAuthoring.TryMoveRegion(preview, area, destination, out error);
+                previewValid = LevelAuthoring.TryMoveRegion(preview, area, destination, out error, Registry);
             }
             if (!previewValid && !string.IsNullOrEmpty(error)) SetStatus(error);
             lastCell = cell;
@@ -210,7 +219,9 @@ namespace Sokoban.Runtime
                 }
                 CommitChange(beforeGesture);
             }
+            if (gesture == Gesture.MoveActor && cell == gestureStart && selectedInstanceId == selectionBeforeGesture) SelectElementAt(cell);
             gesture = Gesture.None; beforeGesture = null; preview = null; movingSelection = null; pointerGesture = false;
+            if (Tool == WorkshopTool.Select && selectedInstanceId != null) RefreshObjectProperties();
             RenderDraft();
         }
 
@@ -225,19 +236,23 @@ namespace Sokoban.Runtime
         public void UndoEdit()
         {
             CancelGesture();
+            CancelReferencePicking();
             if (!CanUndo) return;
             redo.Add(draft.DeepClone());
             RestoreHistory(undo[undo.Count - 1]); undo.RemoveAt(undo.Count - 1);
             selection = null; SetStatus("已撤销。Ctrl+Y 可以重做。"); RenderDraft();
+            RefreshObjectProperties();
         }
 
         public void RedoEdit()
         {
             CancelGesture();
+            CancelReferencePicking();
             if (!CanRedo) return;
             undo.Add(draft.DeepClone());
             RestoreHistory(redo[redo.Count - 1]); redo.RemoveAt(redo.Count - 1);
             selection = null; SetStatus("已重做。"); RenderDraft();
+            RefreshObjectProperties();
         }
 
         private void RestoreHistory(LevelDefinition snapshot)
@@ -260,7 +275,7 @@ namespace Sokoban.Runtime
         public bool CopySelection()
         {
             if (!selection.HasValue || draft == null) { SetStatus("请先使用框选工具或按住 Shift 选择区域。"); return false; }
-            clipboard = LevelAuthoring.ReadRegion(draft, selection.Value);
+            clipboard = LevelAuthoring.ReadRegion(draft, selection.Value, Registry);
             SetStatus(clipboard.HasPlayer ? "已复制区域。粘贴将跳过玩家，点击画布放置，Esc 取消。" : "已复制区域。Ctrl+V 预览粘贴，点击画布放置。");
             return true;
         }
@@ -278,7 +293,7 @@ namespace Sokoban.Runtime
         private void PreviewPaste(GridPos cell)
         {
             preview = draft.DeepClone();
-            previewValid = LevelAuthoring.TryPasteRegion(preview, clipboard, cell, out var error);
+            previewValid = LevelAuthoring.TryPasteRegion(preview, clipboard, cell, out var error, Registry);
             if (!previewValid) SetStatus(error);
             hoverCell = cell;
             RenderDraft();
@@ -309,9 +324,10 @@ namespace Sokoban.Runtime
         public bool Save(LevelSaveIntent intent = LevelSaveIntent.Save)
         {
             CancelGesture();
+            CancelReferencePicking();
             var writer = LevelAuthoringServices.AssetWriter;
             if (writer == null) { SetStatus("当前环境不支持保存项目资产。请在 Unity 中进入运行模式编辑。"); return false; }
-            var solution = source != null && LevelAuthoring.LayoutEquals(source.Data, draft) ? source.VerifiedSolution : "";
+            var solution = source != null && LevelAuthoring.LayoutEquals(source.Data, draft) ? source.GetVerifiedSolution(Registry) : "";
             LevelSaveResult result;
             try { result = writer.Save(source, draft.DeepClone(), solution, intent); }
             catch (Exception error) { Debug.LogException(error); SetStatus("保存失败，请检查项目路径和文件权限后重试。"); return false; }
@@ -328,7 +344,8 @@ namespace Sokoban.Runtime
         public bool StartPlaytest()
         {
             CancelGesture();
-            var issues = LevelValidator.Validate(draft);
+            CancelReferencePicking();
+            var issues = LevelValidator.Validate(draft, Registry);
             if (issues.Count > 0) { ShowIssues(issues); return false; }
             if (app == null) return false;
             view = board.CaptureView();
@@ -340,6 +357,7 @@ namespace Sokoban.Runtime
         public void RequestReturn()
         {
             CancelGesture();
+            CancelReferencePicking();
             ConfirmDiscard(() =>
             {
                 visible = false; loaded = false; view = default;
@@ -349,6 +367,7 @@ namespace Sokoban.Runtime
 
         private void Update()
         {
+            RefreshElementConfiguration();
             if (!InputEnabled || !visible || app == null || app.CurrentScreen != GameController.ScreenState.Workshop || draft == null) return;
             // Some Editor window changes swallow MouseUp without changing application focus.
             // Only mouse-owned gestures use this fallback; programmatic tests/previews remain deterministic.
@@ -366,7 +385,8 @@ namespace Sokoban.Runtime
             }
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                if (HasPendingGesture) CancelGesture();
+                if (referenceProperty != null) CancelReferencePicking();
+                else if (HasPendingGesture) CancelGesture();
                 else if (selection.HasValue) { selection = null; RenderDraft(); }
                 else ShowMenu();
                 return;
@@ -414,6 +434,7 @@ namespace Sokoban.Runtime
         private void UpdateHover(GridPos cell)
         {
             if (!draft.IsInside(cell)) { ClearHover(); return; }
+            if (referenceProperty != null) { HighlightReferences(); board.ClearBrushPreview(); return; }
             if (hoverVisible && cell == hoverCell) return;
             hoverCell = cell; hoverVisible = true;
             if (selection.HasValue) board.Highlight(Cells(selection.Value).Concat(new[] { cell }));
@@ -425,14 +446,7 @@ namespace Sokoban.Runtime
             if (Tool == WorkshopTool.Eraser) tint = new Color(1, .3f, .3f);
             else
             {
-                switch (Brush)
-                {
-                    case LevelBrush.Floor: sprite = visuals != null ? visuals.Floor : null; tint = BoardView.FloorTint; break;
-                    case LevelBrush.Wall: sprite = visuals != null ? visuals.Wall : null; tint = BoardView.WallTint; break;
-                    case LevelBrush.Goal: sprite = visuals != null ? visuals.Goal : null; break;
-                    case LevelBrush.Player: sprite = visuals != null ? visuals.Player : null; break;
-                    case LevelBrush.Box: sprite = visuals != null ? visuals.Box : null; break;
-                }
+                sprite = ElementSprite(selectedTypeId);
             }
             board.ShowBrushPreview(cell, sprite, tint);
         }
@@ -456,7 +470,7 @@ namespace Sokoban.Runtime
         }
 
         private void OnApplicationFocus(bool focus) { if (!focus) { CancelGesture(); panning = false; } }
-        private bool HasActor(GridPos cell) => draft.HasPlayer && draft.PlayerStart == cell || Array.IndexOf(draft.Boxes ?? Array.Empty<GridPos>(), cell) >= 0;
+        private bool HasActor(GridPos cell) => ElementAt(cell) != null;
         private GridPos ClampCell(GridPos cell) => new GridPos(Mathf.Clamp(cell.X, 0, draft.Width - 1), Mathf.Clamp(cell.Y, 0, draft.Height - 1));
         private static bool IsBatchTool(WorkshopTool tool) => tool == WorkshopTool.Line || tool == WorkshopTool.HollowRectangle || tool == WorkshopTool.FilledRectangle || tool == WorkshopTool.Fill;
         private static bool SameDocument(LevelDefinition a, LevelDefinition b) => a != null && b != null && a.Name == b.Name && a.Description == b.Description && LevelAuthoring.LayoutEquals(a, b);
@@ -467,7 +481,7 @@ namespace Sokoban.Runtime
         {
             if (board == null || !visible || draft == null) return;
             hoverVisible = false;
-            board.ShowDraft(previewValid && preview != null ? preview : draft);
+            board.ShowDraft(previewValid && preview != null ? preview : draft, false, Registry);
             if (pastePending && clipboard != null) board.Highlight(Cells(new GridRect(hoverCell.X, hoverCell.Y, clipboard.Width, clipboard.Height)), previewValid);
             else if (gesture == Gesture.MoveRegion && movingSelection.HasValue)
             {
@@ -477,6 +491,8 @@ namespace Sokoban.Runtime
             else if (gesture == Gesture.MoveActor) board.Highlight(new[] { lastCell }, previewValid);
             else if (selection.HasValue) board.Highlight(Cells(selection.Value));
             else if (issueHighlight.HasValue) board.Highlight(new[] { issueHighlight.Value }, false);
+            if (referenceProperty != null) HighlightReferences();
+            else if (propertiesVisible) HighlightSelectedReferences();
             Refresh();
         }
 
@@ -487,15 +503,7 @@ namespace Sokoban.Runtime
             selectionText = ui.Get<TMP_Text>("Selection information");
             currentToolText = ui.Get<TMP_Text>("Current tool");
             statusText = ui.Get<TMP_Text>("Workshop status");
-            var brushes = new[] { LevelBrush.Floor, LevelBrush.Wall, LevelBrush.Goal, LevelBrush.Player, LevelBrush.Box };
-            var config = board.Visuals;
-            var sprites = new[] { config.Floor, config.Wall, config.Goal, config.Player, config.Box };
-            for (int i = 0; i < brushes.Length; i++)
-            {
-                var brush = brushes[i];
-                var button = ui.Button("Element " + brush, () => SetBrush(brush));
-                button.GetComponent<UiButtonVisual>().Icon.sprite = sprites[i]; brushButtons.Add(button);
-            }
+            BuildElementPalette();
             foreach (WorkshopTool tool in Enum.GetValues(typeof(WorkshopTool)))
             {
                 var button = ui.Button("Tool " + tool, () => SetTool(tool)); toolButtons.Add(button);
@@ -518,17 +526,15 @@ namespace Sokoban.Runtime
             if (statusText != null) statusText.text = status;
             if (currentToolText != null) currentToolText.text = ui.Get<WorkshopPointerHint>("Tool " + Tool).DisplayName;
             if (selectionText != null)
-                selectionText.text = $"{draft.Width} × {draft.Height} 格    箱子 {draft.Boxes?.Length ?? 0} / 目标 {draft.Goals?.Length ?? 0}\n" +
-                    (selection.HasValue ? $"选区 {selection.Value.Width} × {selection.Value.Height} · 拖动移动整个区域" : "选中框选工具可直接拖动玩家或箱子");
+                selectionText.text = $"{draft.Width}×{draft.Height}  箱子 {draft.Boxes?.Length ?? 0} / 目标 {draft.Goals?.Length ?? 0}";
             if (undoButton != null) undoButton.interactable = CanUndo;
             if (redoButton != null) redoButton.interactable = CanRedo;
             if (saveButton != null) saveButton.interactable = LevelAuthoringServices.AssetWriter != null;
             if (playButton != null) playButton.interactable = draft != null;
-            var brushes = new[] { LevelBrush.Floor, LevelBrush.Wall, LevelBrush.Goal, LevelBrush.Player, LevelBrush.Box };
-            for (int i = 0; i < brushButtons.Count; i++) MarkButton(brushButtons[i], Brush == brushes[i] && Tool != WorkshopTool.Eraser);
+            RefreshElementSelection();
             for (int i = 0; i < toolButtons.Count; i++)
             {
-                toolButtons[i].interactable = Brush != LevelBrush.Player || !IsBatchTool((WorkshopTool)i);
+                toolButtons[i].interactable = SelectedType?.Role != ElementRole.Player || !IsBatchTool((WorkshopTool)i);
                 MarkButton(toolButtons[i], Tool == (WorkshopTool)i);
 
             }
@@ -559,7 +565,7 @@ namespace Sokoban.Runtime
             panel.Button("Open level", () => ConfirmDiscard(() => ShowOpen()));
             panel.Button("Save as", () => { if (Save(LevelSaveIntent.SaveAs)) CloseModal(); });
             panel.Button("Add to catalog", () => { if (Save(LevelSaveIntent.SaveAndAddToCatalog)) CloseModal(); });
-            panel.Button("Validate level", () => ShowIssues(LevelValidator.Validate(draft)));
+            panel.Button("Validate level", () => ShowIssues(LevelValidator.Validate(draft, Registry)));
             panel.Text("Asset explanation", "普通草稿可先保存。加入目录和试玩前会检查结构，关卡是否有解仍需亲自试玩。");
             panel.Button("Close menu", CloseModal);
         }
@@ -616,7 +622,7 @@ namespace Sokoban.Runtime
                 { SetStatus("地图宽高必须是 2 至 32 的整数。"); return; }
                 var proposed = draft.DeepClone();
                 proposed.Name = name.text; proposed.Description = description.text;
-                LevelAuthoring.Resize(proposed, w, h);
+                LevelAuthoring.Resize(proposed, w, h, Registry);
                 if (w < draft.Width || h < draft.Height)
                 {
                     var confirm = NewModal("Resize confirmation dialog", "确认缩小地图");

@@ -58,6 +58,8 @@ namespace Sokoban.Runtime
         private string defaultMessage;
         private string transientMessage;
         private LevelDefinition playingDefinition;
+        private ElementRegistry playingElements;
+        public MoveResult LastAction { get; private set; }
         private readonly List<AudioClip> generatedClips = new List<AudioClip>();
         private AudioClip moveTone, pushTone, blockedTone, winTone;
 
@@ -70,6 +72,7 @@ namespace Sokoban.Runtime
         {
             public GameSession Session;
             public LevelDefinition Definition;
+            public ElementRegistry Elements;
             public LevelAsset Source;
             public int Index;
             public bool IsPlaytest, WinRecorded, WinSaved;
@@ -86,11 +89,14 @@ namespace Sokoban.Runtime
                 if (!resources || !resources.Catalog || !resources.Config || !resources.Visuals || !board || !canvas || !screens || !audioSource || !playerController || playerController.Game != this || !playerController.Settings)
                     throw new InvalidOperationException("Game 场景的应用入口缺少引用，请在 Inspector 中补齐资源、棋盘、Canvas、页面、音频和角色控制。");
                 screens.Validate();
+                board.ConfigureElements(resources.Elements);
+                board.ConfigureAudio(Play);
                 board.Initialize();
             }
             catch (Exception error) { Debug.LogError(error.Message, this); enabled = false; return; }
             progress = new ProgressStore();
             BuildSounds();
+            ElementCatalog.Changed += OnElementsChanged;
 #if UNITY_EDITOR
             if (PlaytestRequest.TryConsume(out var playtest)) StartSession(playtest, true, -1);
             else
@@ -156,7 +162,7 @@ namespace Sokoban.Runtime
             {
                 workshopReturn = new SavedSession
                 {
-                    Session = Session, Definition = playingDefinition.DeepClone(), Index = CurrentLevelIndex,
+                    Session = Session, Definition = playingDefinition.DeepClone(), Elements = playingElements, Index = CurrentLevelIndex,
                     Source = IsPlaytest ? null : Levels.Find(level => level != null && level.Data != null && level.Data.Id == playingDefinition.Id),
                     IsPlaytest = IsPlaytest, WinRecorded = winRecorded, WinSaved = winSaved, PlaytestReturn = returnFromPlaytest
                 };
@@ -197,13 +203,15 @@ namespace Sokoban.Runtime
             if (saved == null) { ShowMenu(); return; }
             int sourceIndex = saved.Source != null ? Levels.IndexOf(saved.Source) : -1;
             if (!saved.IsPlaytest && (sourceIndex < 0 || saved.Source.Data == null)) { ShowMenu(); return; }
-            if (saved.Source != null && saved.Source.Data.LayoutVersion != saved.Definition.LayoutVersion)
+            if (saved.Source != null && (saved.Source.Data.LayoutVersion != saved.Definition.LayoutVersion ||
+                GameplayFingerprint.Compute(saved.Source.Data, CurrentElements()) != saved.Session.GameplaySignature))
             {
                 StartLevel(sourceIndex);
-                ShowToast("关卡布局已更新，已从新布局重新开始。", 4);
+                ShowToast("关卡布局或机制配置已更新，已重新开始。", 4);
                 return;
             }
             Session = saved.Session;
+            playingElements = saved.Elements;
             playingDefinition = saved.Source != null ? saved.Source.ToDefinition() : saved.Definition;
             IsPlaytest = saved.IsPlaytest;
             CurrentLevelIndex = saved.IsPlaytest ? saved.Index : sourceIndex;
@@ -218,7 +226,8 @@ namespace Sokoban.Runtime
         {
             int index = playingDefinition != null ? Levels.FindIndex(level => level != null && level.Data != null && level.Data.Id == playingDefinition.Id) : -1;
             if (Session == null || index < 0) { ShowMenu(); return; }
-            if (Levels[index].Data.LayoutVersion != playingDefinition.LayoutVersion) { StartLevel(index); return; }
+            if (Levels[index].Data.LayoutVersion != playingDefinition.LayoutVersion || GameplayFingerprint.Compute(Levels[index].Data, CurrentElements()) != Session.GameplaySignature)
+            { StartLevel(index); return; }
             CurrentLevelIndex = index;
             IsPlaytest = false;
             playingDefinition = Levels[index].ToDefinition();
@@ -232,23 +241,25 @@ namespace Sokoban.Runtime
             playerController.ResetInput();
             BuildPlayScreen();
             board.SetViewport(screens.Play.Get<BoardViewport>("Board viewport"));
-            board.Show(playingDefinition, Session.State);
+            board.Show(playingDefinition, Session.State, playingElements);
             RefreshCounters();
             if (Session.IsWon) CompleteLevel();
         }
 
         private void StartSession(LevelDefinition level, bool playtest, int index)
         {
-            try { Session = new GameSession(level); }
-            catch (ArgumentException error)
+            playingElements = CurrentElements();
+            LastAction = null;
+            try { Session = new GameSession(level, playingElements); }
+            catch (Exception error)
             {
                 IsPlaytest = playtest;
                 Debug.LogWarning("创建推箱子游戏状态失败：" + error);
-                var issues = LevelValidator.Validate(level);
+                var issues = LevelValidator.Validate(level, playingElements);
                 ShowError("关卡需要修复", issues.Count > 0 ? issues[0].Message : "无法开始关卡，请检查关卡数据。");
                 return;
             }
-            playingDefinition = level.DeepClone();
+            playingDefinition = Session.Definition;
             IsPlaytest = playtest;
             CurrentLevelIndex = index;
             pendingWin = false;
@@ -277,7 +288,7 @@ namespace Sokoban.Runtime
         private void BuildLevelCard(UiView card, int index)
         {
             var asset = Levels[index];
-            var record = asset != null && asset.Data != null ? progress.Get(asset.Data.Id, asset.Data.LayoutVersion) : null;
+            var record = asset != null && asset.Data != null ? progress.Get(asset.Data, CurrentElements()) : null;
             bool completed = record?.Completed == true;
             card.Text("Number", (index + 1).ToString("00"));
             card.Text("Status", completed ? "已通关" : "未通关");
@@ -298,25 +309,19 @@ namespace Sokoban.Runtime
 
         public void Restart()
         {
-            if (Session == null || board.IsAnimating) return;
+            if (Session == null) return;
             if (CurrentScreen != ScreenState.Playing && CurrentScreen != ScreenState.Paused && CurrentScreen != ScreenState.Complete) return;
-            Session.Restart();
-            pendingWin = false;
-            winRecorded = false;
-            winSaved = false;
-            CurrentScreen = ScreenState.Playing;
-            RemoveModal();
-            board.Sync(Session.State);
-            playerController.ResetInput();
-            RefreshCounters();
-            ShowToast("关卡已重开。", 2);
-            if (Session.IsWon) CompleteLevel();
+            board.CancelAnimation();
+            var source = !IsPlaytest && CurrentLevelIndex >= 0 && CurrentLevelIndex < Levels.Count ? Levels[CurrentLevelIndex] : null;
+            StartSession(source != null ? source.ToDefinition() : playingDefinition, IsPlaytest, CurrentLevelIndex);
+            if (CurrentScreen == ScreenState.Playing) ShowToast("关卡已重开。", 2);
         }
 
         public void Pause()
         {
             if (CurrentScreen != ScreenState.Playing) return;
             CurrentScreen = ScreenState.Paused; playerController.ResetInput();
+            board.SetPlaybackPaused(true);
             var ui = screens.ShowModal(screens.Pause);
             ui.Button("Resume", Resume); ui.Button("Pause restart", Restart);
             ui.Button("Pause leave", LeaveSession, IsPlaytest ? "返回编辑" : "选择关卡");
@@ -328,6 +333,7 @@ namespace Sokoban.Runtime
             if (CurrentScreen != ScreenState.Paused) return;
             RemoveModal();
             CurrentScreen = ScreenState.Playing;
+            board.SetPlaybackPaused(false);
             playerController.ResetInput();
             if (pendingWin) CompleteLevel();
         }
@@ -337,10 +343,12 @@ namespace Sokoban.Runtime
         {
             if (!CanOperate()) return;
             var result = Session.TryMove(direction);
+            LastAction = result;
             if (!result.Succeeded)
             {
+                if (!string.IsNullOrEmpty(result.Trace)) Debug.LogWarning("推箱子行动已回滚：" + result.Trace, this);
                 board.Blocked(direction);
-                ShowToast("前方被挡住了，箱子后方需要有空位。", 1.5f);
+                ShowToast(result.Reason, 2.5f);
                 Play(blockedTone);
                 return;
             }
@@ -348,9 +356,7 @@ namespace Sokoban.Runtime
             // A solved room is earned when the rule transaction succeeds, even if
             // the player leaves before its presentation animation has finished.
             if (result.Won) CommitWin();
-            Play(result.Pushed ? pushTone : moveTone);
-            if (result.Pushed && result.BoxTo.HasValue && playingDefinition.IsGoal(result.BoxTo.Value))
-                ShowToast("箱子已到达目标格。", 1.6f);
+            if (!board.HasConfiguredMoveSound(result)) Play(result.Pushed ? pushTone : moveTone);
             board.Animate(result, Session.State, Config.MoveDuration, () =>
             {
                 if (result.Won)
@@ -381,7 +387,7 @@ namespace Sokoban.Runtime
             if (winRecorded || Session == null || !Session.IsWon) return;
             winRecorded = true;
             var state = Session.State;
-            winSaved = IsPlaytest || progress.RecordWin(playingDefinition.Id, state.Steps, state.Pushes, playingDefinition.LayoutVersion);
+            winSaved = IsPlaytest || progress.RecordWin(playingDefinition, state.Steps, state.Pushes, playingElements);
         }
 
         private void Update()
@@ -393,7 +399,7 @@ namespace Sokoban.Runtime
                 transientMessage = null;
             }
             if (undoButton != null) undoButton.interactable = CanOperate() && Session.CanUndo;
-            if (restartButton != null) restartButton.interactable = CanOperate();
+            if (restartButton != null) restartButton.interactable = Session != null && CurrentScreen == ScreenState.Playing;
         }
 
         public void NavigateBack()
@@ -410,9 +416,7 @@ namespace Sokoban.Runtime
             var state = Session.State;
             stepsText.text = "步数  " + state.Steps.ToString("00");
             pushesText.text = "推动  " + state.Pushes.ToString("00");
-            int placed = 0;
-            foreach (var box in state.Boxes) if (playingDefinition.IsGoal(box)) placed++;
-            goalsText.text = "目标  " + placed + " / " + playingDefinition.Goals.Length;
+            goalsText.text = "目标  " + state.GoalsPlaced + " / " + state.GoalsTotal;
         }
 
         private void ResetScreen(string name)
@@ -452,7 +456,7 @@ namespace Sokoban.Runtime
         private int FirstUnfinished()
         {
             for (int i = 0; i < Levels.Count; i++)
-                if (Levels[i] != null && Levels[i].Data != null && progress.Get(Levels[i].Data.Id, Levels[i].Data.LayoutVersion)?.Completed != true) return i;
+                if (Levels[i] != null && Levels[i].Data != null && progress.Get(Levels[i].Data, CurrentElements())?.Completed != true) return i;
             return Levels.Count > 0 ? 0 : -1;
         }
 
@@ -460,7 +464,7 @@ namespace Sokoban.Runtime
         {
             int count = 0;
             foreach (var level in Levels)
-                if (level != null && level.Data != null && progress.Get(level.Data.Id, level.Data.LayoutVersion)?.Completed == true) count++;
+                if (level != null && level.Data != null && progress.Get(level.Data, CurrentElements())?.Completed == true) count++;
             return count;
         }
 
@@ -528,8 +532,17 @@ namespace Sokoban.Runtime
                 audioSource.PlayOneShot(clip, Mathf.Clamp01(Config.AudioVolume));
         }
 
+        private ElementRegistry CurrentElements() => resources != null && resources.Elements != null ? resources.Elements.Snapshot() : ElementRegistry.BuiltIns();
+
+        private void OnElementsChanged()
+        {
+            if (CurrentScreen == ScreenState.Playing || CurrentScreen == ScreenState.Paused)
+                ShowToast("元素配置已更新，本局继续使用原规则；重新开始后生效。", 8);
+        }
+
         private void OnDestroy()
         {
+            ElementCatalog.Changed -= OnElementsChanged;
             foreach (var clip in generatedClips) if (clip != null) Destroy(clip);
         }
     }
